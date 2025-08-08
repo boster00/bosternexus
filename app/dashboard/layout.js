@@ -8,7 +8,7 @@ import config from "@/config";
 // You can also add custom static UI elements like a Navbar, Sidebar, Footer, etc..
 // See https://shipfa.st/docs/tutorials/private-page
 export default async function LayoutPrivate({ children }) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

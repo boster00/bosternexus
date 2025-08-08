@@ -2,6 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
 export async function updateSession(request) {
+  // Skip auth refresh for API routes that don't need authentication
+  const { pathname } = request.nextUrl;
+  const skipAuthRoutes = ['/api/webhook', '/api/lead'];
+  
+  if (skipAuthRoutes.some(route => pathname.startsWith(route))) {
+    return NextResponse.next({
+      request,
+    });
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
