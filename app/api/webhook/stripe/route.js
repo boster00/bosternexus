@@ -81,11 +81,29 @@ export async function POST(req) {
             user = profile;
           } else {
             // create a new user using supabase auth admin
-            const { data } = await supabase.auth.admin.createUser({
+            const { data, error: authError } = await supabase.auth.admin.createUser({
               email: customer.email,
             });
 
-            user = data?.user;
+            if (authError) {
+              console.error("Failed to create auth user:", authError);
+              throw authError;
+            }
+
+            user = data?.user;            
+            if (user?.id) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              const { data: existingProfile } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", user.id)
+                .single();
+              
+              if (existingProfile) {
+                user = existingProfile;
+              }
+            }
           }
         } else {
           // find user by ID
@@ -98,14 +116,25 @@ export async function POST(req) {
           user = profile;
         }
 
-        await supabase
+        if (!user?.id) {
+          console.error("User ID is null, cannot create/update profile");
+          throw new Error("User ID is required for profile creation");
+        }
+
+        const { error } = await supabase
           .from("profiles")
-          .update({
+          .upsert({
+            id: user.id,
+            email: customer.email,
             customer_id: customerId,
             price_id: priceId,
             has_access: true,
-          })
-          .eq("id", user?.id);
+          });
+
+        if (error) {
+          console.error("Failed to upsert profile:", error);
+          throw error;
+        }
 
         // Extra: send email with user link, product page, etc...
         // try {
