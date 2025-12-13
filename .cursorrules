@@ -1,0 +1,42 @@
+# BosterNexus Cursor Rules (Architecture Constitution)
+
+## A) Repo boundaries
+- Next.js pages/layouts/routes MUST NOT implement business logic.
+- Next.js pages/layouts/routes may only call `/src/client-api/*` methods (or facades exposed by that client).
+- Next.js code MUST NOT import from `apps/api/**` or any backend internal folders.
+
+## B) Backend layering (NestJS)
+- Controllers contain no business logic. They only: validate DTOs, call facades, return responses.
+- Application/use-case orchestration lives in `src/application/**`.
+- Domain logic lives in `src/domain/**` and must not depend on HTTP, DB, or integrations.
+- Integration clients live in `src/integrations/**` and are the only place external APIs are called.
+
+## C) External calls
+- Do NOT use fetch/axios/raw HTTP directly outside `ExternalApiClient`.
+- All external API calls MUST go through `ExternalApiClient` or a client that composes it.
+- Zoho calls MUST go through `ZohoBooksClient` / `ZohoCrmClient` (no scattered Zoho calls).
+- FedEx calls MUST go through `FedexClient` (no scattered shipping calls).
+
+## D) Context
+- Use AsyncLocalStorage request context in NestJS only.
+- Code MAY call `Context.current()` only in:
+  - controllers, facades, orchestrators, integration clients, logging/analytics
+- Code MUST NOT use Context.current() inside core domain logic (pricing/promotions/cart math).
+- Never store or log secrets or raw tokens in context.
+
+## E) Idempotency + transactions
+- Any operation that creates/mutates external state MUST require an idempotency key.
+- Checkout/order flows MUST use TransactionService state transitions; do not set states ad hoc.
+
+## F) Mapping + DTOs
+- All external field mappings (Zoho, FedEx, etc.) MUST live in dedicated Mapper classes.
+- Do not repeat mapping logic across multiple services.
+
+## G) Logging + errors
+- Use structured JSON logging with requestId/sessionId/userId when available.
+- Redact PII/secrets in logs.
+- Do not throw raw errors from application services; use standardized AppError/Result pattern.
+
+## H) Scope control (Phase 1)
+- Do NOT implement full PIM/CMS/admin/SEO systems unless explicitly requested.
+
