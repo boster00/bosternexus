@@ -91,7 +91,7 @@ export class ImageService {
    * Helper: Get full URL (useful for meta tags, social sharing)
    */
   static getFullUrl(path: string): string {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001';
     return `${baseUrl}${path}`;
   }
 
