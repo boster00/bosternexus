@@ -2,152 +2,173 @@
 
 **Internal system platform for Boster Bio (bosterbio.com)**
 
-A monorepo containing:
-- Next.js storefront web app (public Boster Bio site)
-- NestJS backend (BFF + business logic + integrations)
+A security-first monorepo containing:
+- Next.js storefront web app (public Boster Bio site) - **Presentation layer only**
+- NestJS backend (BFF + business logic + integrations) - **Single source of truth**
 - Shared packages for types and foundations
 
 **Note:** "Boster Nexus" is the internal system name. All customer-facing UI uses "Boster" or "Boster Bio" branding.
 
+## Security-First Architecture
+
+This project enforces strict boundaries between frontend and backend:
+
+- **Next.js** is presentation-only: renders data, calls APIs, no business logic
+- **NestJS** is the trust boundary: all business logic, validation, and integrations
+- **Strict Validation**: All endpoints use Zod schemas with "deny unknown keys"
+- **Idempotency**: All state-mutating operations require idempotency keys
+- **Context Isolation**: Request context only in allowed layers
+
+## Quick Start
+
+### Prerequisites
+- Node.js 20+
+- Docker & Docker Compose (optional)
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Build shared packages
+npm run build --workspace=packages/shared
+npm run build --workspace=packages/foundation
+```
+
+### Development
+
+**Option 1: Individual services**
+```bash
+# Terminal 1: API (port 4000)
+npm run api:dev
+
+# Terminal 2: Web (port 3001)
+npm run web:dev
+```
+
+**Option 2: Docker Compose (port 8080)**
+```bash
+npm run dev
+```
+
+### Verification
+
+See [VERIFICATION.md](./VERIFICATION.md) for detailed verification commands.
+
+Quick checks:
+```bash
+# Health endpoint
+curl http://localhost:8080/api/health
+
+# Search endpoint
+curl "http://localhost:8080/api/search?q=bdnf"
+
+# Frontend
+open http://localhost:8080
+```
+
 ## Architecture
 
-This project follows a clean, layered architecture:
+### Boundary Model
 
-- **Frontend (Next.js)**: Pages call only `NexusApiClient` methods - no business logic
-- **Backend (NestJS)**: Layered architecture with Controllers → Facades → Orchestrators → Pipelines
-- **Foundation Package**: Core primitives (AppError, Result, Logger, ExternalApiClient, Idempotency)
-- **Shared Package**: DTOs and types shared between frontend and backend
+```
+┌─────────────────┐
+│   Next.js Web   │  Presentation only
+│  (apps/web)     │  → Calls NexusApiClient
+└────────┬────────┘
+         │ HTTP/REST
+         ▼
+┌─────────────────┐
+│  NestJS API     │  Trust boundary
+│  (apps/api)     │  → Strict validation
+│                 │  → Business logic
+│                 │  → Integrations
+└─────────────────┘
+```
+
+### Key Principles
+
+1. **Strict Input Validation**: Every endpoint validates with Zod schemas (deny unknown keys)
+2. **Idempotency**: State-mutating operations require idempotency keys
+3. **Context Isolation**: AsyncLocalStorage context only in controllers/facades/orchestrators
+4. **No Server Actions**: Next.js uses explicit REST endpoints, not server functions
+5. **Single API Client**: All frontend API calls go through `NexusApiClient`
 
 ## Project Structure
 
 ```
 bosternexus/
 ├── apps/
-│   ├── api/          # NestJS backend
-│   └── web/           # Next.js frontend
+│   ├── web/          # Next.js frontend (presentation)
+│   └── api/          # NestJS backend (business logic)
 ├── packages/
-│   ├── foundation/   # Core primitives
-│   └── shared/       # Shared DTOs/types
-└── infra/
-    ├── compose/       # Docker Compose config
-    └── nginx/         # Nginx reverse proxy config
+│   ├── foundation/   # AppError, Result, Logger, ExternalApiClient
+│   └── shared/       # DTOs and Zod schemas
+├── infra/
+│   ├── compose/      # Docker Compose
+│   └── nginx/        # Nginx config with security limits
+└── .cursorrules      # Architecture enforcement rules
 ```
 
-## Getting Started
+## Security Features
 
-### Prerequisites
+- ✅ Strict Zod validation (deny unknown keys)
+- ✅ Idempotency keys for state mutations
+- ✅ Request context with requestId/sessionId
+- ✅ Log redaction for secrets/PII
+- ✅ Nginx rate limiting
+- ✅ Security headers (X-Frame-Options, etc.)
+- ✅ Request size limits
 
-- Node.js 20+
-- Docker and Docker Compose
+## Development Guidelines
 
-### Local Development
+See `.cursorrules` for complete architecture rules. Key points:
 
-1. Install dependencies:
+- **Frontend**: Only calls `NexusApiClient`, no direct fetch/axios
+- **Backend**: Controllers → Facades → Orchestrators → Pipelines
+- **Validation**: All endpoints use Zod schemas from `@bosternexus/shared`
+- **Context**: Only in controllers/facades/orchestrators/integrations
+
+## Dependency Management
+
+See [DEPENDENCY_AUDIT.md](./DEPENDENCY_AUDIT.md) for dependency auditing procedures.
+
+Quick audit:
 ```bash
-npm install
+npm audit
+npm audit --workspace=apps/web
+npm audit --workspace=apps/api
 ```
 
-2. Start all services with Docker Compose:
+## Deployment
+
+Target: Single VPS + Docker Compose + Nginx, fronted by Cloudflare
+
 ```bash
-npm run dev
-```
-
-Or start services individually:
-```bash
-# Terminal 1: API
-npm run api:dev
-
-# Terminal 2: Web
-npm run web:dev
-```
-
-### Docker Deployment
-
-Build and start all services:
-```bash
+# Build
 npm run build
+
+# Start
 npm run start
 ```
 
-Stop services:
-```bash
-npm run dev:down
-```
+## Status
 
-## Services
-
-- **Web**: http://localhost:3000 (direct) or http://localhost:8080 (via Nginx)
-- **API**: http://localhost:4000 (direct) or http://localhost:8080/api (via Nginx)
-- **Nginx**: http://localhost:8080 (reverse proxy)
-
-## Verification
-
-1. Test API search endpoint:
-```bash
-curl http://localhost:8080/api/search?q=bdnf
-```
-
-2. Open homepage:
-```
-http://localhost:8080
-```
-
-3. Test search page:
-```
-http://localhost:8080/search?q=bdnf
-```
-
-## Architecture Audit
-
-Run automated architecture compliance checks:
-
-**Linux/macOS:**
-```bash
-./scripts/audit.sh
-```
-
-**Windows (PowerShell):**
-```powershell
-.\scripts\audit.ps1
-```
-
-The audit script verifies:
-- `.cursorrules` exists and contains required rules
-- Monorepo structure matches specification
-- Docker Compose + Nginx configuration
-- Next.js boundary enforcement (no backend imports)
-- Backend layering compliance
-- Foundation primitives exist and are used
-- ALS Context implementation
-- Search flow end-to-end
-- Transaction watchdog skeleton
-
-See `AUDIT_REPORT.md` for detailed validation results.
-
-## Architecture Rules
-
-See `.cursorrules` for detailed architecture rules. Key principles:
-
-- Next.js pages MUST NOT implement business logic
-- Next.js MUST NOT import from `apps/api/**`
-- All external API calls MUST go through `ExternalApiClient`
-- Backend follows strict layering: Controller → Facade → Orchestrator → Pipeline
-- Use AsyncLocalStorage Context for request correlation
-- All operations that mutate external state require idempotency keys
-
-## Phase 1 Scope
-
-✅ Monorepo scaffold
-✅ Foundation primitives
-✅ Search flow example
-✅ Transaction watchdog skeleton
-✅ Integration client skeletons
-✅ Docker Compose + Nginx
-✅ Boster Bio homepage
+✅ Security-first architecture  
+✅ Strict validation with Zod  
+✅ Health endpoint  
+✅ Search example with full cascade  
+✅ Transaction watchdog skeleton  
+✅ Docker Compose + Nginx  
+✅ Dependency audit documentation  
 
 Not yet implemented:
 - Full PIM/CMS/admin UI
-- Full SEO
 - Payment capture flow
-- Production database
+- Production database integration
+- Full integration clients (Zoho, FedEx)
 
+## License
+
+Private - Boster Bio Internal Use Only
