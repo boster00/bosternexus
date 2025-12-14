@@ -1,35 +1,14 @@
-'use client';
-
-import Navigation from '@/components/Navigation';
-import HeroSection from '@/components/HeroSection';
-import StatsSection from '@/components/StatsSection';
-import ProductCategories from '@/components/ProductCategories';
-import ServicesSection from '@/components/ServicesSection';
-import LearningCenter from '@/components/LearningCenter';
-import PartnersSection from '@/components/PartnersSection';
-import TestimonialsSection from '@/components/TestimonialsSection';
-import BlogSection from '@/components/BlogSection';
-import FeaturedProducts from '@/components/FeaturedProducts';
-import GeneSearch from '@/components/GeneSearch';
-import Newsletter from '@/components/Newsletter';
-import Footer from '@/components/Footer';
-
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col bg-white font-body">
-      <Navigation />
-      <HeroSection />
-      <StatsSection />
-      <ProductCategories />
-      <ServicesSection />
-      <LearningCenter />
-      <PartnersSection />
-      <TestimonialsSection />
-      <BlogSection />
-      <FeaturedProducts />
-      <GeneSearch />
-      <Newsletter />
-      <Footer />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          Welcome to Boster Nexus
+        </h1>
+        <p className="text-lg text-gray-600">
+          Your Next.js application is ready.
+        </p>
+      </div>
     </div>
   );
 }

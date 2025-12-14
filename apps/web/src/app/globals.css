@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@700&family=Mulish:wght@400;500;700;800&family=Source+Sans+3:wght@400&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,82 +8,10 @@
   margin: 0;
 }
 
-/* Design tokens for Boster Bio homepage */
-:root {
-  /* Colors */
-  --color-primary-orange: #ea8d28;
-  --color-primary-dark-blue: #144b8c;
-  --color-primary-light-blue: #3ca9d6;
-  --color-white: #ffffff;
-  --color-light-gray: #f2f2f2;
-  --color-lighter-gray: #f9f9f9;
-  --color-medium-gray: #6f6f6f;
-  --color-dark-gray: #434343;
-  --color-divider-gray: #bababa;
-  
-  /* Typography */
-  --font-heading: 'Josefin Sans', sans-serif;
-  --font-body: 'Mulish', sans-serif;
-  
-  /* Font Sizes */
-  --font-size-xs: 12px;
-  --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-lg: 20px;
-  --font-size-xl: 28px;
-  --font-size-2xl: 36px;
-  --font-size-3xl: 42px;
-  --font-size-4xl: 48px;
-  
-  /* Font Weights */
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-bold: 700;
-  --font-weight-extrabold: 800;
-  
-  /* Spacing */
-  --spacing-xs: 4px;
-  --spacing-sm: 6px;
-  --spacing-md: 10px;
-  --spacing-lg: 16px;
-  --spacing-xl: 20px;
-  --spacing-2xl: 30px;
-  --spacing-3xl: 60px;
-  
-  /* Border Radius */
-  --radius-sm: 6px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 30px;
-  --radius-2xl: 40px;
-  --radius-3xl: 60px;
-  --radius-4xl: 90px;
-  --radius-full: 9999px;
-  
-  /* Shadows */
-  --shadow-sm: 0px 4px 6px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0px 4px 10px rgba(0, 0, 0, 0.10);
-  --shadow-lg: 0px 4px 30px rgba(0, 0, 0, 0.10);
-  --shadow-xl: 0px 4px 40px rgba(4, 29, 77, 0.07);
-  --shadow-header: 0px 4px 10px rgba(0, 0, 0, 0.30);
-  
-  /* Gaps */
-  --gap-xs: 4px;
-  --gap-sm: 6px;
-  --gap-md: 10px;
-  --gap-lg: 16px;
-  --gap-xl: 20px;
-  --gap-2xl: 24px;
-  --gap-3xl: 30px;
-}
-
 html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
