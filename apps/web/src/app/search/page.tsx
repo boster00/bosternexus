@@ -33,7 +33,7 @@ function SearchContent() {
     <div className={styles.container}>
       <header className={styles.header}>
         <Link href="/" className={styles.logo}>
-          <h1>BosterNexus</h1>
+          <h1>Boster Bio</h1>
         </Link>
         <nav className={styles.nav}>
           <Link href="/">Home</Link>

@@ -1,9 +1,13 @@
-# BosterNexus
+# Boster Nexus
+
+**Internal system platform for Boster Bio (bosterbio.com)**
 
 A monorepo containing:
-- Next.js storefront web app (public site)
+- Next.js storefront web app (public Boster Bio site)
 - NestJS backend (BFF + business logic + integrations)
 - Shared packages for types and foundations
+
+**Note:** "Boster Nexus" is the internal system name. All customer-facing UI uses "Boster" or "Boster Bio" branding.
 
 ## Architecture
 
@@ -139,7 +143,7 @@ See `.cursorrules` for detailed architecture rules. Key principles:
 ✅ Transaction watchdog skeleton
 ✅ Integration client skeletons
 ✅ Docker Compose + Nginx
-✅ BosterBio-style homepage
+✅ Boster Bio homepage
 
 Not yet implemented:
 - Full PIM/CMS/admin UI

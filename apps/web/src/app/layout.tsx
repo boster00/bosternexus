@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'BosterNexus - Life Science Research Products',
-  description: 'High-quality antibodies, proteins, and ELISA kits for life science research',
+  title: 'Boster Bio - Life Science Research Products & Services',
+  description: 'High-quality antibodies, proteins, ELISA kits, and custom services for life science research. Trusted by researchers worldwide.',
 }
 
 export default function RootLayout({

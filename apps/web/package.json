@@ -2,13 +2,14 @@
   "name": "@bosternexus/web",
   "version": "1.0.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
     "@bosternexus/shared": "*",
+    "lucide-react": "^0.561.0",
     "next": "^14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
@@ -17,7 +18,9 @@
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.3.3"
   }
 }
-

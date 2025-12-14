@@ -1,4 +1,13 @@
-# BosterNexus Cursor Rules (Architecture Constitution)
+# Boster Nexus Cursor Rules (Architecture Constitution)
+
+## 0) Branding Guidelines
+**CRITICAL: Customer-facing branding rules**
+- Brand name: **Boster** or **Boster Bio** (NEVER "BosterNexus" in customer UI)
+- Domain: bosterbio.com
+- "Boster Nexus" is the internal system name for the platform/business intelligence system
+- All customer-facing UI, emails, documents MUST use "Boster" or "Boster Bio"
+- Internal code, logs, system names may use "BosterNexus" or "Nexus"
+- Repository name "bosternexus" is acceptable for internal reference only
 
 ## A) Repo boundaries
 - Next.js pages/layouts/routes MUST NOT implement business logic.
@@ -39,4 +48,23 @@
 
 ## H) Scope control (Phase 1)
 - Do NOT implement full PIM/CMS/admin/SEO systems unless explicitly requested.
+
+## I) Product image organization
+- Product images use Magento-style SKU-based subfolder structure.
+- Images are organized by first two letters of SKU (lowercase).
+- Example: SKU "PA1012" → `/media/images/products/p/a/PA1012-image.jpg`
+- Example: SKU "BD2345" → `/media/images/products/b/d/BD2345-thumb.jpg`
+- This prevents directory bloat and maintains performance at scale.
+
+## J) Styling & CSS Rules
+- Tailwind CSS is the default styling system for apps/web.
+- Global CSS (globals.css) is restricted to:
+  - Tailwind base/components/utilities
+  - CSS reset (if any)
+  - Design tokens (CSS variables only)
+- No page-specific or component-specific styles may be added to global CSS.
+- All new UI must use Tailwind utilities or existing UI primitives.
+- Do NOT introduce ad-hoc CSS Modules unless explicitly requested.
+- Arbitrary Tailwind values (e.g. w-[317px]) are allowed only when required for fidelity.
+- Repeated Tailwind patterns SHOULD be consolidated into components later, but NOT during initial page implementation.
 
