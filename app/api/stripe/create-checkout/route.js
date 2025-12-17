@@ -39,13 +39,7 @@ export async function POST(req) {
 
     const { priceId, mode, successUrl, cancelUrl } = body;
 
-    // Use DAL to get profile
-    const dal = new DataAccessLayer({
-      useServiceRole: false, // Use authenticated client for user's own profile
-      requireUserId: true, // Enforce user_id matching
-      autoTimestamps: false, // Don't auto-manage timestamps for reads
-    });
-
+    // Use DAL to get profile (reuse the same dal instance)
     const data = await dal.getSingle("profiles", { id: user?.id });
 
     const stripeSessionURL = await createCheckout({

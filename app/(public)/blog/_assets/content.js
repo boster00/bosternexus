@@ -1,5 +1,5 @@
 import Image from "next/image";
-import marcImg from "@/app/blog/_assets/images/authors/marc.png";
+import marcImg from "@/app/(public)/blog/_assets/images/authors/marc.png";
 import introducingSupabaseImg from "@/public/blog/introducing-supabase/header.png";
 
 // ==================================================================================================================================================================

@@ -4,6 +4,8 @@ import { createCustomerPortal } from "@/libs/stripe";
 
 export async function POST(req) {
   try {
+    const body = await req.json();
+    
     // Get current user using DAL
     const dal = new DataAccessLayer({
       useServiceRole: false,
@@ -20,13 +22,7 @@ export async function POST(req) {
       );
     }
 
-    // Use DAL to get profile
-    const dal = new DataAccessLayer({
-      useServiceRole: false, // Use authenticated client for user's own profile
-      requireUserId: true, // Enforce user_id matching
-      autoTimestamps: false, // Don't auto-manage timestamps for reads
-    });
-
+    // Use DAL to get profile (reuse the same dal instance)
     const profile = await dal.getSingle("profiles", { id: user?.id });
 
     if (!profile?.customer_id) {
