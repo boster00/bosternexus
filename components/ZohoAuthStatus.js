@@ -27,17 +27,9 @@ export default function ZohoAuthStatus({ service, onStatusChange }) {
   const checkStatus = async (abortSignal = null, useLiveCheck = false) => {
     setLoading(true);
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:26',message:'checkStatus entry',data:{service,useLiveCheck,abortSignal:!!abortSignal},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
       // Use "check" action (expiration time only) for initial mount
       // Use "authenticate" action (live API call) for refresh button
       const action = useLiveCheck ? "authenticate" : "check";
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:32',message:'action determined',data:{action},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       
       // Add timeout only for live checks (authenticate action)
       const timeoutPromise = useLiveCheck 
@@ -46,26 +38,14 @@ export default function ZohoAuthStatus({ service, onStatusChange }) {
           })
         : null;
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:40',message:'before API call',data:{action,service,hasTimeout:!!timeoutPromise},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-
       const apiCallPromise = apiClient.post("/zoho/test", {
         action,
         service,
       });
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:47',message:'API call promise created, awaiting',data:{action},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-
       const response = timeoutPromise 
         ? await Promise.race([apiCallPromise, timeoutPromise])
         : await apiCallPromise;
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:52',message:'API call completed',data:{hasResponse:!!response,authenticated:response?.authenticated},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       
       // Check if request was aborted
       if (abortSignal?.aborted) {
@@ -77,10 +57,6 @@ export default function ZohoAuthStatus({ service, onStatusChange }) {
         onStatusChangeRef.current(response);
       }
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:58',message:'error caught',data:{errorMessage:error.message,errorName:error.name,aborted:abortSignal?.aborted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
       // Check if request was aborted
       if (abortSignal?.aborted) {
         return;
@@ -96,10 +72,6 @@ export default function ZohoAuthStatus({ service, onStatusChange }) {
         onStatusChangeRef.current({ authenticated: false, error: error.message });
       }
     } finally {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ZohoAuthStatus.js:73',message:'finally block',data:{aborted:abortSignal?.aborted},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
       if (!abortSignal?.aborted) {
         setLoading(false);
       }

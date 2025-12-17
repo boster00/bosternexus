@@ -30,16 +30,10 @@ export class ZohoAuthService {
    * @returns {Promise<object|null>} Token object or null if not found
    */
   async getToken(service, userId = null) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:32',message:'getToken entry',data:{service,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     const vendor = "zoho";
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:37',message:'before DAL select in getToken',data:{vendor,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
+      
     // Fetch both access and refresh tokens using DAL
     // Zoho tokens are shared across all services, so we don't filter by metadata.service
     const [accessResult, refreshResult] = await Promise.all([
@@ -98,18 +92,12 @@ export class ZohoAuthService {
       }),
     ]);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:91',message:'DAL select completed in getToken',data:{hasAccessResult:!!accessResult,hasRefreshResult:!!refreshResult,accessError:accessResult?.error?.message,refreshError:refreshResult?.error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
 
     const accessTokenData = accessResult.data;
     const refreshTokenData = refreshResult.data;
 
     // Need at least access token
     if (!accessTokenData) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:97',message:'no access token found, returning null',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       return null;
     }
 
@@ -117,36 +105,21 @@ export class ZohoAuthService {
     if (accessTokenData.expires_at) {
       const expiresAt = new Date(accessTokenData.expires_at);
       if (expiresAt < new Date()) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:117',message:'token expired, attempting refresh',data:{service,hasRefreshToken:!!refreshTokenData?.token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         
         // Token expired, try to refresh if refresh token exists
         if (refreshTokenData?.token) {
           try {
             const refreshed = await this.refreshToken(service, userId);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:125',message:'refreshToken completed in getToken',data:{hasRefreshed:!!refreshed,hasAccessToken:!!refreshed?.accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
             return refreshed;
           } catch (error) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:130',message:'refreshToken failed in getToken',data:{errorMessage:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
             console.error(`Failed to refresh expired token for ${service}:`, error);
             return null;
           }
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:135',message:'no refresh token available, returning null',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         return null;
       }
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:140',message:'getToken returning valid token',data:{hasAccessToken:!!accessTokenData.token,hasRefreshToken:!!refreshTokenData?.token,isExpired:accessTokenData.expires_at?new Date(accessTokenData.expires_at)<new Date():false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     return {
       accessToken: accessTokenData.token,
@@ -376,17 +349,11 @@ export class ZohoAuthService {
    * @returns {Promise<object>} New token object
    */
   async refreshToken(service, userId = null) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:285',message:'refreshToken entry',data:{service,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     // Get existing tokens directly from database to avoid infinite recursion
     // (getToken would try to refresh again if token is expired, causing a loop)
     const vendor = "zoho";
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:293',message:'before DAL select in refreshToken',data:{vendor,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     const [accessResult, refreshResult] = await Promise.all([
       this.dal.select("auth_tokens", {
@@ -442,9 +409,6 @@ export class ZohoAuthService {
       }),
     ]);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:340',message:'DAL select completed in refreshToken',data:{hasAccessResult:!!accessResult,hasRefreshResult:!!refreshResult,hasRefreshToken:!!refreshResult?.data?.token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     const refreshTokenData = refreshResult.data;
     const accessTokenData = accessResult.data;
@@ -492,9 +456,6 @@ export class ZohoAuthService {
 
       // Update only the access token row (refresh token stays the same)
       // Note: service will be automatically added to metadata in saveToken
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:380',message:'before saveToken in refreshToken',data:{service,hasRefreshToken:!!existingToken.refreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       
       await this.saveToken(service, userId, {
         accessToken: newAccessToken,
@@ -507,7 +468,6 @@ export class ZohoAuthService {
       });
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:395',message:'refreshToken returning',data:{hasAccessToken:!!newAccessToken,hasRefreshToken:!!existingToken.refreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
 
       return {
@@ -616,15 +576,9 @@ export class ZohoAuthService {
    * @returns {Promise<object>} Token status object
    */
   async getTokenStatus(service, userId = null) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:426',message:'getTokenStatus entry',data:{service,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     const vendor = "zoho";
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:430',message:'before DAL select calls',data:{vendor,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
 
     // Fetch access and refresh tokens using DAL
     const [accessResult, refreshResult] = await Promise.all([
@@ -697,9 +651,6 @@ export class ZohoAuthService {
     const expiresAt = accessTokenData.expires_at ? new Date(accessTokenData.expires_at) : null;
     const isExpired = expiresAt ? expiresAt < new Date() : false;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.js:500',message:'getTokenStatus returning',data:{exists:true,isExpired,hasRefreshToken:!!refreshTokenData?.token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     return {
       exists: true,

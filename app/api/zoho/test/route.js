@@ -43,23 +43,11 @@ export async function POST(req) {
 
     switch (action) {
       case "check":
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:44',message:'check action entry',data:{service,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        
         // Check authentication status - use getAccessToken which auto-refreshes expired tokens
         // This ensures expired tokens are automatically refreshed
         
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:48',message:'before getAccessToken (with auto-refresh)',data:{service,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        
         // Use getAccessToken which will automatically refresh expired tokens
         const checkedAccessToken = await zoho.getAccessToken(service, userId);
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:51',message:'getAccessToken completed',data:{hasAccessToken:!!checkedAccessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         
         if (!checkedAccessToken) {
           return NextResponse.json({
@@ -69,15 +57,7 @@ export async function POST(req) {
         }
 
         // Get full token details for display (after potential refresh)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:57',message:'before getToken for details',data:{service,userId:userId||'null'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        
         const tokenDetails = await zoho.authService.getToken(service, userId);
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:60',message:'getToken completed',data:{hasTokenDetails:!!tokenDetails,hasAccessToken:!!tokenDetails?.accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         
         // Format token details for display (mask sensitive parts)
         const formatToken = (token) => {
@@ -279,9 +259,6 @@ export async function POST(req) {
         );
     }
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.js:255',message:'catch block in POST handler',data:{errorMessage:error.message,errorName:error.name,errorStack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     
     console.error("Zoho API error:", error);
     return NextResponse.json(

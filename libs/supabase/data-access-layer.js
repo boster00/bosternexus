@@ -15,34 +15,12 @@ export class DataAccessLayer {
    * Get Supabase client (with or without service role)
    */
   async getClient() {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:17',message:'getClient entry',data:{useServiceRole:this.useServiceRole},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     if (this.useServiceRole) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:19',message:'creating service role client',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       const client = createServiceRoleClient();
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:22',message:'service role client created',data:{hasClient:!!client},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       return client;
     }
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:27',message:'creating regular client',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     const client = await createClient();
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:30',message:'regular client created',data:{hasClient:!!client},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     return client;
   }
 
@@ -239,19 +217,7 @@ export class DataAccessLayer {
    * Supports complex query building via queryBuilder function
    */
   async select(tableName, options = {}) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:203',message:'select entry',data:{tableName,useServiceRole:this.useServiceRole},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:206',message:'before getClient',data:{tableName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     const supabase = await this.getClient();
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:210',message:'getClient completed',data:{hasSupabase:!!supabase,tableName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     
     let query = supabase.from(tableName).select(options.columns || '*');
 
@@ -290,15 +256,7 @@ export class DataAccessLayer {
 
     // Support maybeSingle() for single record queries
     if (options.single) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:242',message:'before maybeSingle',data:{tableName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
       const result = await query.maybeSingle();
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:245',message:'maybeSingle completed',data:{hasError:!!result.error,errorCode:result.error?.code,hasData:!!result.data,tableName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       if (result.error) {
         // PGRST116 is "not found" which is expected for maybeSingle
@@ -313,15 +271,7 @@ export class DataAccessLayer {
       return { data: result.data, error: null };
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:257',message:'before query execution',data:{tableName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     const { data, error } = await query;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:260',message:'query execution completed',data:{hasError:!!error,hasData:!!data,tableName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     if (error) {
       if (error.code === '42501' || error.message?.includes('policy')) {

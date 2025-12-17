@@ -24,18 +24,38 @@ import { Logger } from '@/libs/utils/logger';
 export async function GET(request) {
   try {
     // Verify this is a legitimate Vercel cron request
-    const authHeader = request.headers.get('authorization');
+    // Vercel sends cron jobs with the 'x-vercel-cron' header
+    const cronHeader = request.headers.get('x-vercel-cron');
     const cronSecret = process.env.CRON_SECRET;
     
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      Logger.warn('Unauthorized cron job attempt', {
-        authHeader: authHeader ? 'present' : 'missing',
-        path: '/api/cron/daily-midnight-pst'
+    // In production, Vercel automatically adds the x-vercel-cron header
+    // For local testing or additional security, you can also check CRON_SECRET
+    if (process.env.NODE_ENV === 'production' && !cronHeader) {
+      Logger.warn('Cron job called without Vercel header', {
+        path: '/api/cron/daily-midnight-pst',
+        headers: Object.fromEntries(request.headers.entries())
       });
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      // In production, reject if no Vercel header (unless CRON_SECRET is provided as fallback)
+      if (!cronSecret) {
+        return NextResponse.json(
+          { error: 'Unauthorized - not a Vercel cron request' },
+          { status: 401 }
+        );
+      }
+    }
+    
+    // Optional: Additional security with CRON_SECRET for manual triggers
+    if (cronSecret) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader !== `Bearer ${cronSecret}`) {
+        Logger.warn('Unauthorized cron job attempt with invalid secret', {
+          path: '/api/cron/daily-midnight-pst'
+        });
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
     }
 
     Logger.info('Daily midnight PST cron job started', {
