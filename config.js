@@ -1,11 +1,11 @@
 const config = {
   // REQUIRED
-  appName: "ShipFast Supabase",
+  appName: "Boster Nexus",
   // REQUIRED: a short description of your app for SEO tags (can be overwritten)
   appDescription:
-    "The NextJS boilerplate with all you need to build your SaaS, AI tool, or any other web app.",
+    "Internal operations and enablement platform centralizing Boster's cross-system workflows across Zoho Books, Zoho CRM, Zoho Desk, Magento, and marketing analytics.",
   // REQUIRED (no https://, not trialing slash at the end, just the naked domain)
-  domainName: "shipfa.st",
+  domainName: "nexus.bosterbio.com",
   crisp: {
     // Crisp website ID. IF YOU DON'T USE CRISP: just remove this => Then add a support email in this config file (resend.supportEmail) otherwise customer support won't work.
     id: "",
@@ -84,10 +84,10 @@ const config = {
     main: "#570df8",
   },
   auth: {
-    // REQUIRED — the path to log in users. It's use to protect private routes (like /dashboard). It's used in apiClient (/libs/api.js) upon 401 errors from our API
+    // REQUIRED — the path to log in users. It's use to protect private routes (like /admin). It's used in apiClient (/libs/api.js) upon 401 errors from our API
     loginUrl: "/signin",
-    // REQUIRED — the path you want to redirect users after successfull login (i.e. /dashboard, /private). This is normally a private page for users to manage their accounts. It's used in apiClient (/libs/api.js) upon 401 errors from our API & in ButtonSignin.js
-    callbackUrl: "/dashboard",
+    // REQUIRED — the path you want to redirect users after successfull login. Default redirect for authenticated users.
+    callbackUrl: "/admin",
   },
 };
 

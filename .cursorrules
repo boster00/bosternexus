@@ -1,18 +1,263 @@
-# ShipFast SaaS Boilerplate - Cursor Rules (Updated for Next.js 15 + Tailwind v4 + DaisyUI v5)
+You are an expert full-stack developer working on **Boster Nexus**, an internal operations and enablement web app for Bosterbio. This is a Next.js application built on the ShipFast boilerplate foundation.
 
-You are an expert full-stack developer working on ShipFast, a Next.js SaaS boilerplate with the latest tech stack.
+## 🎯 Project Purpose
 
-## 🚀 Current Tech Stack (Updated)
-- **Next.js**: 15.1.3 with React 19 and Turbopack
+Boster Nexus centralizes Boster's cross-system workflows across:
+- **Zoho Books** (source of truth for transactional data)
+- **Zoho CRM** (customer relationship management)
+- **Zoho Desk** (support tickets)
+- **Magento** (storefront/e-commerce)
+- **Marketing Analytics** (GA4/BigQuery)
+
+The app acts as a **cache/warehouse** and **system of record for derived/internal-only data**, not replacing source systems but enabling efficient operations and guardrails.
+
+## 🚀 Tech Stack
+
+- **Next.js**: 15.1.9 with React 19 and Turbopack
 - **React**: 19.0.0 (latest stable)
 - **Tailwind CSS**: 4.0.0 (CSS-based configuration)
 - **DaisyUI**: 5.0.50 (latest with new component system)
-- **Supabase**: Latest SSR package with async cookies support
-- **Stripe**: 17.3.1 (latest API)
+- **Supabase**: Latest SSR package with async cookies support (Auth + Postgres)
+- **Database**: Managed Postgres (Neon/Supabase) - primarily cache/warehouse
+- **Deployment**: Vercel
 
-## ⚠️ Critical Rules to Eliminate Warnings
+## 📊 Core Data Principles
 
-### 1. **Supabase Client Usage**
+### Source of Truth Hierarchy
+1. **Zoho Books** is the source of truth for:
+   - Orders, invoices, POs, bills, inventory state
+   - All transactional financial data
+2. **Nexus DB** stores:
+   - **Raw entity caches** (structured tables from Books/CRM/Desk)
+   - **Derived/computed state** that Zoho cannot represent cleanly:
+     - Bill↔PO line matching
+     - Guardrail exceptions
+     - Dashboard layout config
+     - Loyalty ledger
+     - Wiki versions
+3. **BigQuery** remains the store for GA4-scale event data; Nexus pulls only what it needs on-demand
+
+### Rate Limiting Constraints
+⚠️ **CRITICAL**: Zoho API rate limit is **no more than 1 request per second**
+- The Zoho class (`@/libs/zoho.js`) handles rate limiting automatically
+- **Always use the Zoho class** - never make direct API calls
+- For long chains, prefer async jobs (Postgres job table)
+- Design must prevent parallel overload
+- The Zoho class ensures all requests respect the 1 req/sec limit
+
+## 📁 File Structure & Organization
+
+### Route Groups (Next.js App Router)
+```
+app/
+├── (public)/              # Public pages (no auth required)
+│   ├── layout.js         # Public layout wrapper
+│   ├── page.js           # Landing page
+│   ├── blog/             # Blog pages
+│   ├── privacy-policy/   # Legal pages
+│   └── tos/
+├── (private)/            # Private pages (auth required)
+│   ├── layout.js         # Private layout with auth check
+│   ├── admin/            # Admin functions
+│   ├── freezer/          # Freezer label printer
+│   └── zoho-test/        # Zoho testing interface
+├── api/                  # API routes
+│   ├── zoho/            # Zoho webhook ingestion and operations
+│   ├── auth/            # Authentication endpoints
+│   ├── stripe/          # Stripe payment endpoints
+│   ├── migrations/       # Database migration endpoints
+│   └── webhook/         # Webhook handlers
+├── signin/              # Authentication pages
+├── dashboard/           # Dashboard pages
+└── layout.js            # Root layout
+```
+
+### Service Layer Architecture
+```
+libs/
+├── zoho/                # Zoho integration
+│   ├── index.js         # CRITICAL: Central Zoho class for all Zoho operations
+│   ├── auth.js          # Zoho authentication service
+│   ├── config.js        # Zoho configuration
+│   ├── rate-limiter.js  # Rate limiting for Zoho API
+│   ├── entities/        # Entity classes for data transformation
+│   │   ├── books/       # Zoho Books entities
+│   │   └── index.js
+│   ├── orchestration/   # Orchestration services
+│   │   └── ZohoOrchestrator.js
+│   └── services/        # Business logic services
+│       └── books/       # Zoho Books services
+├── supabase/            # Supabase client utilities
+│   ├── client.js        # Client-side Supabase client
+│   ├── server.js        # Server-side Supabase client
+│   ├── data-access-layer.js  # CRITICAL: Data Access Layer for all DB operations
+│   └── middleware.js    # Supabase middleware utilities
+├── utils/               # Shared utilities
+│   └── logger.js        # Structured file logging utility
+├── zoho.js              # Legacy export (re-exports from zoho/index.js)
+├── stripe.js            # Stripe integration
+├── api.js               # API client utilities
+└── [other]/             # Other utility libraries
+```
+
+### Database Organization
+```
+Database Tables:
+- zoho_books_*           # Zoho Books data (e.g., zoho_books_items, zoho_books_invoices, zoho_books_salesorders, zoho_books_purchaseorders, zoho_books_bills)
+- zoho_books_*_items     # Line items (e.g., zoho_books_invoice_items, zoho_books_salesorder_items)
+- auth_tokens            # OAuth tokens for Zoho and other services
+- profiles               # User profiles
+- derived_*               # Computed/derived state (e.g., derived_bill_po_matches)
+- jobs_*                 # Async job queue (e.g., jobs_sync, jobs_reconciliation)
+- config_*               # Configuration (e.g., config_dashboard_layouts, config_report_definitions)
+- internal_*              # Internal-only data (e.g., internal_guardrail_exceptions, internal_loyalty_ledger)
+```
+
+## ⚠️ Critical Rules
+
+### 1. **Zoho API Operations** (MANDATORY)
+**ALL Zoho-related operations MUST use the Zoho class from `@/libs/zoho.js`.**
+**NEVER code Zoho API calls from scratch or use vanilla fetch/axios directly.**
+
+```javascript
+// ❌ WRONG - Direct API call without using Zoho class
+const response = await fetch('https://books.zoho.com/api/v3/items');
+const items = await axios.get('https://books.zoho.com/api/v3/items');
+
+// ❌ WRONG - Manual rate limiting (even if correct, violates class usage rule)
+import { zohoRateLimiter } from '@/libs/utils/rate-limiter';
+await zohoRateLimiter.acquire();
+try {
+  const response = await fetch('https://books.zoho.com/api/v3/items');
+} finally {
+  zohoRateLimiter.release();
+}
+
+// ✅ CORRECT - Always use the Zoho class (rate limiting is built-in)
+import zoho from '@/libs/zoho';
+
+// Zoho Books operations
+const items = await zoho.getBooksItems();
+const invoice = await zoho.getBooksInvoice('123456');
+const invoices = await zoho.getBooksInvoices({ page: 1, per_page: 25 });
+
+// Zoho CRM operations
+const contacts = await zoho.getCrmRecords('Contacts');
+const lead = await zoho.getCrmRecord('Leads', '123456');
+await zoho.createCrmRecord('Contacts', { First_Name: 'John', Last_Name: 'Doe' });
+
+// Zoho Desk operations
+const tickets = await zoho.getDeskTickets();
+const ticket = await zoho.getDeskTicket('123456');
+
+// Generic methods (if specific methods don't exist)
+const customData = await zoho.get('books', '/custom-endpoint', { param: 'value' });
+
+// ✅ CORRECT - For long workflows, use async jobs
+const dal = new DataAccessLayer({ useServiceRole: true });
+await dal.insert('jobs_sync', {
+  type: 'items_refresh',
+  payload: { /* ... */ },
+  status: 'pending'
+});
+// The job processor will use zoho.getBooksItems() when executing
+```
+
+**Key Points:**
+- The Zoho class handles rate limiting automatically (1 req/sec)
+- The Zoho class handles token refresh automatically
+- The Zoho class provides type-safe methods for common operations
+- All Zoho API calls must go through this class - no exceptions
+
+### 2. **Data Access Layer (DAL) Pattern** (MANDATORY)
+**ALL database operations MUST use the Data Access Layer from `@/libs/supabase/data-access-layer.js`.**
+**NEVER use direct `supabase.from()` calls for database operations.**
+
+**Exception:** Auth operations (`supabase.auth.getUser()`, `supabase.auth.admin.*`) can remain direct, but use DAL's `getCurrentUser()` or `getCurrentUserId()` methods when possible.
+
+```javascript
+// ❌ WRONG - Direct Supabase database operations
+const supabase = await createClient();
+await supabase.from('zoho_books_items').upsert({ zoho_id: '123', name: 'Item' });
+const { data } = await supabase.from('profiles').select().eq('id', userId);
+
+// ❌ WRONG - Direct Supabase client for auth when DAL method exists
+const supabase = await createClient();
+const { data: { user } } = await supabase.auth.getUser();
+
+// ✅ CORRECT - Use Data Access Layer for all database operations
+import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
+
+// For system-level operations (Zoho syncs, webhooks, etc.)
+const dal = new DataAccessLayer({
+  useServiceRole: true,    // Bypass RLS for system operations
+  requireUserId: false,     // Zoho data is not user-specific
+  autoTimestamps: true      // Auto-manage created_at/updated_at
+});
+
+await dal.upsert('zoho_books_items', {
+  zoho_id: '123',
+  name: 'Item Name',
+  // user_id automatically injected if requireUserId: true
+  // created_at/updated_at automatically managed if autoTimestamps: true
+}, { onConflict: 'zoho_id' });
+
+// For user-specific operations
+const dal = new DataAccessLayer({
+  useServiceRole: false,    // Use authenticated client
+  requireUserId: true,      // Enforce user_id injection
+  autoTimestamps: true      // Auto-manage timestamps
+});
+
+const profile = await dal.getSingle('profiles', { id: userId });
+await dal.insert('user_preferences', { key: 'theme', value: 'dark' });
+
+// ✅ CORRECT - Use DAL for auth context (preferred over direct)
+const dal = new DataAccessLayer({
+  useServiceRole: false,
+  requireUserId: false,
+  autoTimestamps: false,
+});
+
+// Get user ID
+const userId = await dal.getCurrentUserId();
+
+// Get full user object
+const user = await dal.getCurrentUser();
+
+// ✅ CORRECT - Direct Supabase client ONLY for auth operations not covered by DAL
+// (e.g., supabase.auth.admin.createUser, supabase.auth.exchangeCodeForSession)
+import { createClient } from '@/libs/supabase/server';
+const supabase = await createClient();
+await supabase.auth.admin.createUser({ email: 'user@example.com' });
+```
+
+**DAL Methods:**
+- `dal.insert(tableName, records, options)` - Insert records
+- `dal.upsert(tableName, records, options)` - Upsert records
+- `dal.update(tableName, updates, filters)` - Update records
+- `dal.select(tableName, options)` - Select records with filters, ordering, pagination
+- `dal.delete(tableName, filters)` - Delete records
+- `dal.getSingle(tableName, filters)` - Get single record
+- `dal.getCurrentUserId()` - Get current user ID from auth context
+- `dal.getCurrentUser()` - Get current user object from auth context
+
+**DAL Options:**
+- `useServiceRole: boolean` - Use service role client (bypasses RLS)
+- `requireUserId: boolean` - Automatically inject user_id from auth context
+- `autoTimestamps: boolean` - Automatically manage created_at/updated_at
+
+**Key Points:**
+- DAL ensures RLS compliance and validates user_id matches
+- DAL automatically injects user_id when requireUserId: true
+- DAL automatically manages timestamps when autoTimestamps: true
+- DAL provides better error messages for RLS failures
+- Use service role for system-level operations (Zoho syncs, webhooks)
+- Use authenticated client for user-specific operations
+
+### 3. **Supabase Client Usage** (For Auth Operations Only)
+**Direct Supabase client should ONLY be used for auth operations not covered by DAL.**
+
 ```javascript
 // ❌ WRONG - Will cause async cookies warning
 const supabase = createClient();
@@ -23,9 +268,22 @@ const supabase = await createClient();
 // ✅ CORRECT - Client components use different import
 import { createClient } from "@/libs/supabase/client"; // For client components
 import { createClient } from "@/libs/supabase/server"; // For server components (async)
+
+// ✅ CORRECT - Use DAL for getting user context (preferred)
+const dal = new DataAccessLayer({ useServiceRole: false });
+const user = await dal.getCurrentUser();
+const userId = await dal.getCurrentUserId();
+
+// ✅ CORRECT - Direct client ONLY for auth operations not in DAL
+// (e.g., admin operations, code exchange)
+const supabase = await createClient();
+await supabase.auth.admin.createUser({ email: 'user@example.com' });
+const { data } = await supabase.auth.exchangeCodeForSession(code);
 ```
 
-### 2. **Next.js 15 Headers API**
+### 4. **Next.js 15 Conventions**
+
+#### Headers API
 ```javascript
 // ❌ WRONG - Synchronous headers access
 const signature = headers().get("stripe-signature");
@@ -34,174 +292,344 @@ const signature = headers().get("stripe-signature");
 const signature = (await headers()).get("stripe-signature");
 ```
 
-### 3. **Import Cleanup Rules**
-- Remove unused imports immediately
-- Use specific imports instead of wildcard imports
-- Comment out imports in commented code blocks
+#### Proxy File (Not Middleware)
+**Next.js 15 uses `proxy.js` instead of `middleware.js`.**
 
 ```javascript
-// ❌ WRONG - Unused import
-import { createClient } from "@/libs/supabase/server";
-// const supabase = createClient(); // commented out
+// ✅ CORRECT - Use proxy.js file in project root
+// proxy.js
+import { updateSession } from "@/libs/supabase/middleware";
 
-// ✅ CORRECT - Move import inside comment or remove
-// const { createClient } = require("@/libs/supabase/server");
-// const supabase = createClient();
+export async function proxy(request) {
+  return await updateSession(request);
+}
+
+export const config = {
+  matcher: [/* ... */],
+};
 ```
 
-### 4. **React Hooks Dependencies**
+**Key Points:**
+- File name: `proxy.js` (not `middleware.js`)
+- Export function: `proxy` (not `middleware`)
+- See `proxy.js` in project root for reference
+
+### 5. **Service Layer Pattern**
 ```javascript
-// ❌ WRONG - Missing dependencies
-useEffect(() => {
-  supabase.auth.getUser();
-}, []); // Missing supabase dependency
+// ❌ WRONG - Business logic in route handler
+// app/api/zoho/items/route.js
+export async function GET(req) {
+  const items = await fetch('https://books.zoho.com/api/v3/items');
+  const processed = items.map(/* complex logic */);
+  return NextResponse.json(processed);
+}
 
-// ✅ CORRECT - Include all dependencies or move inside useEffect
-useEffect(() => {
-  const supabase = createClient();
-  supabase.auth.getUser();
-}, []); // No external dependencies
+// ✅ CORRECT - Thin route handler → Service → Zoho Class
+// app/api/zoho/items/route.js
+import { ZohoItemsService } from '@/libs/services/zoho/items';
+
+export async function GET(req) {
+  const service = new ZohoItemsService();
+  const items = await service.getAllItems();
+  return NextResponse.json(items);
+}
+
+// libs/services/zoho/items.js
+import zoho from '@/libs/zoho';
+import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
+
+export class ZohoItemsService {
+  constructor() {
+    this.dal = new DataAccessLayer({
+      useServiceRole: true,
+      requireUserId: false,
+      autoTimestamps: true,
+    });
+  }
+
+  async getAllItems() {
+    // Business logic here
+    // MUST use zoho class - never direct API calls
+    const itemsData = await zoho.getBooksItems();
+    
+    // Use DAL for database operations
+    for (const item of itemsData) {
+      await this.dal.upsert('zoho_books_items', {
+        zoho_id: item.id,
+        name: item.name,
+        // ... other fields
+      }, { onConflict: 'zoho_id' });
+    }
+    
+    return itemsData;
+  }
+}
 ```
 
-### 5. **Tailwind CSS v4 Utilities**
-```css
-/* ❌ WRONG - Pseudo-selectors in @utility */
-@utility btn-gradient:hover {
-  filter: saturate(1.2);
-}
-
-/* ✅ CORRECT - Separate CSS rules for pseudo-selectors */
-@utility btn-gradient {
-  background: var(--color-gradient);
-}
-
-.btn-gradient:hover {
-  filter: saturate(1.2);
-}
-```
-
-### 6. **DaisyUI v5 Theme Configuration**
-```css
-/* ✅ CORRECT - New v5 syntax */
-@import "tailwindcss";
-@plugin "daisyui";
-
-@theme {
-  --color-primary: oklch(49.12% 0.309 275.75);
-  --color-gradient: linear-gradient(60deg, #f79533, #f37055, #ef4e7b, #a166ab, #5073b8, #1098ad, #07b39b, #6fba82);
-}
-```
-
-### 7. **Environment Variable Checks**
+### 6. **Database Caching Pattern**
 ```javascript
-// ✅ ALWAYS check env vars before using them
-export async function POST(req) {
-  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+// ❌ WRONG - Direct Supabase operations
+await supabase.from('zoho_cache_items').upsert({...});
+
+// ✅ CORRECT - Use DAL for database operations
+import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
+import { BooksItemEntity } from '@/libs/zoho/entities';
+
+// Initialize DAL for system-level operations
+const dal = new DataAccessLayer({
+  useServiceRole: true,    // Bypass RLS for Zoho syncs
+  requireUserId: false,    // Zoho data is not user-specific
+  autoTimestamps: true     // Auto-manage timestamps
+});
+
+// Transform Zoho data using Entity class
+const dbRecord = BooksItemEntity.transformToDbRecord(zohoItem);
+
+// Upsert using DAL
+await dal.upsert('zoho_books_items', dbRecord, { onConflict: 'zoho_id' });
+
+// For transactions (invoices, salesorders, etc.)
+const invoiceRecord = BooksInvoiceEntity.transformToDbRecord(zohoInvoice);
+await dal.upsert('zoho_books_invoices', invoiceRecord, { onConflict: 'zoho_id' });
+```
+
+**Actual Table Names:**
+- `zoho_books_items` - Items/products
+- `zoho_books_invoices` - Invoices
+- `zoho_books_salesorders` - Sales orders
+- `zoho_books_purchaseorders` - Purchase orders
+- `zoho_books_bills` - Bills
+- `zoho_books_invoice_items` - Invoice line items
+- `zoho_books_salesorder_items` - Sales order line items
+- `zoho_books_purchaseorder_items` - Purchase order line items
+- `zoho_books_bill_items` - Bill line items
+
+## 🔐 Authentication & Authorization
+
+### Route Protection
+- **Public routes**: Use `app/(public)/layout.js` - no auth check
+- **Private routes**: Use `app/(private)/layout.js` - checks Supabase auth, redirects to `/signin` if not logged in
+- **Admin routes**: Use `app/(private)/admin/layout.js` - checks auth, future: add role/permission checks
+
+### Login Flow
+1. User visits protected route
+2. `(private)/layout.js` checks authentication using DAL
+3. If not authenticated → redirect to `/signin`
+4. After successful login → redirect to `config.auth.callbackUrl` (default: `/admin`)
+
+### Auth Implementation Pattern
+```javascript
+// ✅ CORRECT - Use DAL for auth checks in layouts
+import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
+
+export default async function PrivateLayout({ children }) {
+  const dal = new DataAccessLayer({
+    useServiceRole: false,
+    requireUserId: false,
+    autoTimestamps: false,
+  });
+  
+  const user = await dal.getCurrentUser();
+  
+  if (!user) {
+    redirect(config.auth.loginUrl);
   }
   
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2023-08-16",
-  });
+  // ... rest of layout
 }
 ```
 
-## 📁 File Structure & Naming
+## 📦 Key Modules (Implementation Order)
 
-### API Routes (App Router)
-```
-app/api/[endpoint]/route.js
-- Always use async/await for database operations
-- Always await createClient() for Supabase
-- Always await headers() for Next.js 15
-- Include error handling with proper status codes
-```
+### Phase 1: Foundation (Current)
+1. ✅ Authentication & login
+2. ✅ Folder structure (`(public)` and `(private)/admin`)
+3. ✅ Layout files with auth checks
+4. ✅ Logging system (Logger utility + log viewer scripts)
+5. ✅ Data Access Layer (DAL) implementation
+6. ✅ Zoho Books sync infrastructure
 
-### Components
-```
-components/ComponentName.js
-- Use "use client" for interactive components
-- Use async server components for data fetching
-- Import from @/config for app settings
-- Use absolute imports with @/ prefix
-```
+### Phase 2: Core Integration
+1. **Zoho Books sync + cache + reconciliation**
+   - Webhook ingestion endpoints
+   - Rate-limited sync jobs
+   - Daily reconciliation
+   - Historical sync service
+
+2. **Procurement & fulfillment operational signals**
+   - PO quantity calculations
+   - Backorder/on-the-way signals
+   - SO guardrails
+
+### Phase 3: Extended Features
+3. Zoho CRM ingestion + tools
+4. Quote lifecycle automation
+5. Customer portal widgets
+6. Zoho Desk sync
+7. Marketing attribution dashboards
+8. Sales analytics + AI curation
+9. PIM (Product Information Management)
+10. Loyalty system
+11. Notifications
+12. Monitoring/alerts framework
 
 ## 🎨 Styling Rules
 
 ### Tailwind CSS v4 Syntax
 ```css
-/* Import and plugin setup */
 @import "tailwindcss";
 @plugin "daisyui";
 
-/* Theme variables */
 @theme {
-  --color-custom: #ff0000;
-  --size-custom: 1rem;
-}
-
-/* Custom utilities */
-@utility custom-class {
-  property: value;
-}
-
-/* Pseudo-selectors as separate rules */
-.custom-class:hover {
-  property: value;
+  --color-primary: #570df8; /* Boster brand color - adjust as needed */
 }
 ```
 
 ### DaisyUI v5 Component Usage
 ```html
-<!-- ✅ Use new v5 class names -->
 <div class="card card-border"> <!-- v5: card-border instead of card-bordered -->
-<div class="card card-sm"> <!-- v5: card-sm instead of card-compact -->
-<button class="btn btn-primary btn-sm"> <!-- Responsive modifiers work -->
-
-<!-- ✅ New responsive syntax -->
-<button class="btn btn-primary md:btn-lg lg:btn-xl">Responsive Button</button>
-```
-
-## 🔧 Performance & Best Practices
-
-### Server Components (Default)
-```javascript
-// ✅ Server component with data fetching
-export default async function Page() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('table').select('*');
-  
-  return <div>{/* JSX */}</div>;
-}
-```
-
-### Client Components (Interactive)
-```javascript
-"use client";
-import { useState, useEffect } from "react";
-import { createClient } from "@/libs/supabase/client";
-
-export default function InteractiveComponent() {
-  const [data, setData] = useState(null);
-  const supabase = createClient(); // Client-side, no await needed
-  
-  useEffect(() => {
-    // Fetch data
-  }, []);
-  
-  return <div>{/* Interactive JSX */}</div>;
-}
+<button class="btn btn-primary btn-sm">
 ```
 
 ## 🚫 Common Mistakes to Avoid
 
-1. **DON'T** use synchronous `headers()` or `cookies()` in Next.js 15
-2. **DON'T** import unused dependencies
-3. **DON'T** use old Tailwind v3 `@tailwind` directives with v4
-4. **DON'T** use old DaisyUI v4 theme import paths
-5. **DON'T** use `createClient()` without await in server components
-6. **DON'T** mix server and client component patterns
-7. **DON'T** use deprecated `domains` in next.config.js (use `remotePatterns`)
+1. **DON'T** make Zoho API calls without using the Zoho class from `@/libs/zoho.js`
+2. **DON'T** code Zoho API operations from scratch - always use zoho class methods
+3. **DON'T** use direct fetch/axios calls to Zoho APIs - use zoho.get(), zoho.post(), etc.
+4. **DON'T** use direct `supabase.from()` calls for database operations - use DAL
+5. **DON'T** store Zoho data as source of truth (it's a cache)
+6. **DON'T** use synchronous `headers()` or `cookies()` in Next.js 15
+7. **DON'T** put business logic directly in route handlers
+8. **DON'T** import unused dependencies
+9. **DON'T** use `createClient()` without await in server components
+10. **DON'T** replicate GA4-scale data into Nexus DB (pull on-demand from BigQuery)
+11. **DON'T** use `console.log/error/warn` for production logging - use `Logger` from `@/libs/utils/logger`
+12. **DON'T** use `middleware.js` - use `proxy.js` for Next.js 15
+13. **DON'T** use table names like `zoho_cache_*` - actual tables are `zoho_books_*`
+
+## 🔧 Development Best Practices
+
+### Async Jobs Pattern
+```javascript
+// For long-running or rate-limited operations:
+// 1. Insert job into queue using DAL
+import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
+
+const dal = new DataAccessLayer({ useServiceRole: true });
+await dal.insert('jobs_sync', {
+  type: 'items_full_refresh',
+  status: 'pending',
+  payload: { /* ... */ }
+});
+
+// 2. Background worker processes jobs (separate process/cron)
+// Uses rate limiter, handles retries, updates status
+```
+
+### Error Handling
+```javascript
+// Always handle Zoho API errors gracefully
+import zoho from '@/libs/zoho';
+import { Logger } from '@/libs/utils/logger';
+import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
+
+try {
+  const data = await zoho.getBooksItems();
+} catch (error) {
+  if (error.message.includes('429')) {
+    // Rate limited - should queue as job instead
+    const dal = new DataAccessLayer({ useServiceRole: true });
+    await dal.insert('jobs_sync', {
+      type: 'items_refresh',
+      status: 'pending',
+      payload: { retryAfter: error.retryAfter }
+    });
+  }
+  // Log errors using Logger (not console.error)
+  Logger.error('Zoho API error', error, { 
+    operation: 'getBooksItems',
+    service: 'books'
+  });
+}
+```
+
+### Logging System
+**ALWAYS use the Logger utility instead of console.log/error/warn for production code.**
+
+The project has a structured logging system that writes to files in the `logs/` directory. Logs are organized by level and are accessible to AI agents for debugging.
+
+**Logger Usage:**
+```javascript
+// ✅ CORRECT - Use Logger utility
+import { Logger } from '@/libs/utils/logger';
+
+// Log errors (with error object and context)
+Logger.error('Operation failed', error, { 
+  userId: '123',
+  operation: 'syncItems',
+  service: 'books'
+});
+
+// Log warnings
+Logger.warn('Rate limit approaching', { 
+  remaining: 10,
+  service: 'books'
+});
+
+// Log info messages
+Logger.info('Items synced successfully', { 
+  count: 5,
+  service: 'books'
+});
+
+// Log debug (only in development)
+Logger.debug('Processing batch', { 
+  batchNumber: 1,
+  size: 50
+});
+
+// ❌ WRONG - Don't use console methods for production logging
+console.error('Error:', error);
+console.log('Info:', data);
+console.warn('Warning:', message);
+```
+
+**Log Files:**
+- Logs are written to `logs/` directory in the project root
+- Level-specific files: `error.log`, `warn.log`, `info.log`, `debug.log`
+- Combined file: `combined.log` (all levels)
+- Log files are JSON-formatted, one entry per line
+- Log files are git-ignored (see `.gitignore`)
+
+**Checking Logs:**
+```bash
+# View recent error logs (default: last 50)
+npm run logs:error
+
+# View recent info logs
+npm run logs:info
+
+# View all recent logs (combined)
+npm run logs:combined
+
+# Or use the script directly with custom parameters
+node scripts/check-logs.js error 20   # Last 20 error logs
+node scripts/check-logs.js info 100   # Last 100 info logs
+node scripts/check-logs.js warn 30    # Last 30 warning logs
+```
+
+**When to Use Logging:**
+- **Error**: Always log errors with full context (error object, operation, relevant IDs)
+- **Warn**: Use for recoverable issues, rate limit warnings, validation failures
+- **Info**: Use for important operations (syncs, API calls, state changes)
+- **Debug**: Use for detailed debugging info (only in development)
+
+**Best Practices:**
+- Always include context data (service, operation, IDs, counts)
+- Use structured data objects, not string concatenation
+- Log at appropriate levels (don't log everything as error)
+- Include error objects when logging errors
+- Log important state changes and sync operations
 
 ## 🎯 Commit Message Format
 Use Conventional Commits:
@@ -211,15 +639,23 @@ Use Conventional Commits:
 - `style:` for formatting changes
 - `docs:` for documentation
 - `perf:` for performance improvements
+- `chore:` for maintenance tasks
 
 ## 🔍 Before Committing Checklist
 - [ ] No unused imports
 - [ ] All async functions properly awaited
+- [ ] **All Zoho API calls use zoho class from `@/libs/zoho.js`** (MANDATORY)
+- [ ] No direct fetch/axios calls to Zoho APIs
+- [ ] **All database operations use DAL from `@/libs/supabase/data-access-layer.js`** (MANDATORY)
+- [ ] No direct `supabase.from()` calls for database operations
+- [ ] **Use Logger utility instead of console methods for production logging**
 - [ ] No ESLint warnings
 - [ ] Build passes (`npm run build`)
 - [ ] All environment variables checked
 - [ ] Proper error handling in API routes
 - [ ] Server/client components used correctly
+- [ ] Business logic in service layer, not route handlers
+- [ ] Using `proxy.js` (not `middleware.js`) for Next.js 15
 
 ## 🛠️ Development Commands
 ```bash
@@ -227,6 +663,27 @@ npm run dev          # Development with Turbopack
 npm run build        # Production build
 npm run lint         # ESLint check
 npm run lint:fix     # Auto-fix ESLint issues
+
+# Log viewing commands
+npm run logs         # View recent error logs (default)
+npm run logs:error   # View recent error logs
+npm run logs:info    # View recent info logs
+npm run logs:combined # View all recent logs
 ```
 
-Remember: This codebase uses the latest Next.js 15, React 19, Tailwind v4, and DaisyUI v5. Always follow the new patterns and APIs for these versions. 
+## 📝 Environment Variables
+
+Required environment variables (see `.env.local`):
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ZOHO_BOOKS_CLIENT_ID`
+- `ZOHO_BOOKS_CLIENT_SECRET`
+- `ZOHO_BOOKS_ACCESS_TOKEN` (or refresh token flow)
+- `ZOHO_CRM_CLIENT_ID` (similar pattern)
+- `ZOHO_CRM_CLIENT_SECRET`
+- `ZOHO_DESK_CLIENT_ID` (similar pattern)
+- `ZOHO_DESK_CLIENT_SECRET`
+- `DATABASE_URL` or `SUPABASE_DB_URL` or `SUPABASE_DB_PASSWORD` (for migrations)
+
+Remember: This is an **internal operations tool**. Focus on reliability, data accuracy, and efficient cross-system workflows. Always respect rate limits and maintain clean separation between cache and source of truth.

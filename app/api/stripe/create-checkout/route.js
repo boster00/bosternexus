@@ -1,5 +1,5 @@
 import { createCheckout } from "@/libs/stripe";
-import { createClient } from "@/libs/supabase/server";
+import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
 import { NextResponse } from "next/server";
 
 // This function is used to create a Stripe Checkout Session (one-time payment or subscription)
@@ -29,19 +29,24 @@ export async function POST(req) {
   }
 
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Get current user using DAL
+    const dal = new DataAccessLayer({
+      useServiceRole: false,
+      requireUserId: false,
+      autoTimestamps: false,
+    });
+    const user = await dal.getCurrentUser();
 
     const { priceId, mode, successUrl, cancelUrl } = body;
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user?.id)
-      .single();
+    // Use DAL to get profile
+    const dal = new DataAccessLayer({
+      useServiceRole: false, // Use authenticated client for user's own profile
+      requireUserId: true, // Enforce user_id matching
+      autoTimestamps: false, // Don't auto-manage timestamps for reads
+    });
+
+    const data = await dal.getSingle("profiles", { id: user?.id });
 
     const stripeSessionURL = await createCheckout({
       priceId,

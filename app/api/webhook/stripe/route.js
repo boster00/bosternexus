@@ -1,6 +1,7 @@
 import configFile from "@/config";
 import { findCheckoutSession } from "@/libs/stripe";
 import { createClient } from "@supabase/supabase-js";
+import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
@@ -30,7 +31,7 @@ export async function POST(req) {
   let eventType;
   let event;
 
-  // Create a private supabase client using the secret service_role API key
+  // Create a private supabase client using the secret service_role API key for auth admin operations
   // Disable realtime to reduce Edge Runtime warnings
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -40,6 +41,13 @@ export async function POST(req) {
       realtime: { disabled: true }
     }
   );
+
+  // Use DAL with service role for database operations
+  const dal = new DataAccessLayer({
+    useServiceRole: true,
+    requireUserId: false, // Webhook operations are system-level
+    autoTimestamps: true,
+  });
 
   // verify Stripe event is legit
   try {
@@ -71,16 +79,12 @@ export async function POST(req) {
 
         let user;
         if (!userId) {
-          // check if user already exists
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", customer.email)
-            .single();
+          // check if user already exists using DAL
+          const profile = await dal.getSingle("profiles", { email: customer.email });
           if (profile) {
             user = profile;
           } else {
-            // create a new user using supabase auth admin
+            // create a new user using supabase auth admin (auth operations still use direct client)
             const { data, error: authError } = await supabase.auth.admin.createUser({
               email: customer.email,
             });
@@ -94,11 +98,7 @@ export async function POST(req) {
             if (user?.id) {
               await new Promise(resolve => setTimeout(resolve, 100));
               
-              const { data: existingProfile } = await supabase
-                .from("profiles")
-                .select("*")
-                .eq("id", user.id)
-                .single();
+              const existingProfile = await dal.getSingle("profiles", { id: user.id });
               
               if (existingProfile) {
                 user = existingProfile;
@@ -106,13 +106,8 @@ export async function POST(req) {
             }
           }
         } else {
-          // find user by ID
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId)
-            .single();
-
+          // find user by ID using DAL
+          const profile = await dal.getSingle("profiles", { id: userId });
           user = profile;
         }
 
@@ -121,15 +116,15 @@ export async function POST(req) {
           throw new Error("User ID is required for profile creation");
         }
 
-        const { error } = await supabase
-          .from("profiles")
-          .upsert({
-            id: user.id,
-            email: customer.email,
-            customer_id: customerId,
-            price_id: priceId,
-            has_access: true,
-          });
+        // Upsert profile using DAL
+        const { error } = await dal.upsert("profiles", {
+          id: user.id,
+          email: customer.email,
+          customer_id: customerId,
+          price_id: priceId,
+          has_access: true,
+          user_id: user.id, // Explicitly set user_id
+        }, { onConflict: 'id' });
 
         if (error) {
           console.error("Failed to upsert profile:", error);
@@ -167,10 +162,8 @@ export async function POST(req) {
           stripeObject.id
         );
 
-        await supabase
-          .from("profiles")
-          .update({ has_access: false })
-          .eq("customer_id", subscription.customer);
+        // Update profile using DAL
+        await dal.update("profiles", { has_access: false }, { customer_id: subscription.customer });
         break;
       }
 
@@ -181,21 +174,14 @@ export async function POST(req) {
         const priceId = stripeObject.lines.data[0].price.id;
         const customerId = stripeObject.customer;
 
-        // Find profile where customer_id equals the customerId (in table called 'profiles')
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("customer_id", customerId)
-          .single();
+        // Find profile where customer_id equals the customerId using DAL
+        const profile = await dal.getSingle("profiles", { customer_id: customerId });
 
         // Make sure the invoice is for the same plan (priceId) the user subscribed to
-        if (profile.price_id !== priceId) break;
+        if (!profile || profile.price_id !== priceId) break;
 
-        // Grant the profile access to your product. It's a boolean in the database, but could be a number of credits, etc...
-        await supabase
-          .from("profiles")
-          .update({ has_access: true })
-          .eq("customer_id", customerId);
+        // Grant the profile access to your product using DAL
+        await dal.update("profiles", { has_access: true }, { customer_id: customerId });
 
         break;
       }

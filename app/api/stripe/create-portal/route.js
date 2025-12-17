@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/libs/supabase/server";
+import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
 import { createCustomerPortal } from "@/libs/stripe";
 
 export async function POST(req) {
   try {
-    const supabase = await createClient();
-
-    const body = await req.json();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Get current user using DAL
+    const dal = new DataAccessLayer({
+      useServiceRole: false,
+      requireUserId: false,
+      autoTimestamps: false,
+    });
+    const user = await dal.getCurrentUser();
 
     // User who are not logged in can't make a purchase
     if (!user) {
@@ -20,11 +20,14 @@ export async function POST(req) {
       );
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user?.id)
-      .single();
+    // Use DAL to get profile
+    const dal = new DataAccessLayer({
+      useServiceRole: false, // Use authenticated client for user's own profile
+      requireUserId: true, // Enforce user_id matching
+      autoTimestamps: false, // Don't auto-manage timestamps for reads
+    });
+
+    const profile = await dal.getSingle("profiles", { id: user?.id });
 
     if (!profile?.customer_id) {
       return NextResponse.json(
