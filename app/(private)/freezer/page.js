@@ -461,6 +461,21 @@ export default function FreezerPage() {
             display: none !important;
           }
 
+          /* Ensure body and html have no margins/padding for print */
+          body,
+          html {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            overflow: visible !important;
+          }
+
+          /* Hide the main container background but keep structure */
+          .min-h-screen.bg-gray-100 {
+            background: white !important;
+            padding: 0 !important;
+          }
+
           /* Show print-only content */
           .print-only {
             display: block !important;
