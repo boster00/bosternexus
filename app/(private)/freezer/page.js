@@ -469,12 +469,21 @@ export default function FreezerPage() {
           [id*="toast"],
           div[role="status"],
           div[aria-live],
-          .__react-hot-toast-container {
+          .__react-hot-toast-container,
+          /* Hide toast icons and checkmarks */
+          svg[class*="toast"],
+          svg[data-icon],
+          [class*="toast"] svg,
+          [class*="toast"] path,
+          [class*="toast"] circle,
+          [class*="toast"] * {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
             position: absolute !important;
             left: -9999px !important;
+            width: 0 !important;
+            height: 0 !important;
           }
 
           /* Ensure body and html have no margins/padding for print */
