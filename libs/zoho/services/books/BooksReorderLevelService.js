@@ -26,6 +26,42 @@ export class BooksReorderLevelService {
   }
 
   /**
+   * Determine if an item should be kept in stock (reorder level calculated)
+   * 
+   * Rules:
+   * - Must match at least one inclusion condition:
+   *   1. Name contains "antibody" (case-insensitive)
+   *   2. SKU starts with "EK" or "AR"
+   * - Must NOT match any exclusion condition:
+   *   1. SKU contains "10ug" or "sample" (case-insensitive)
+   * 
+   * @param {object} item - Item object with at least name, sku, and optionally purchase_description
+   * @returns {boolean} True if item should be kept in stock, false otherwise
+   */
+  isKeepStock(item) {
+    if (!item) {
+      return false;
+    }
+
+    const name = (item.name || '').toLowerCase();
+    const sku = (item.sku || '').toUpperCase();
+    const purchaseDescription = (item.purchase_description || '').toLowerCase();
+
+    // Exclusion conditions (must NOT match any) - case-insensitive
+    const skuLower = sku.toLowerCase();
+    if (skuLower.includes('10ug') || skuLower.includes('sample')) {
+      return false;
+    }
+
+    // Inclusion conditions (must match at least one)
+    const hasAntibodyInName = name.includes('antibody');
+    const startsWithEK = sku.startsWith('EK');
+    const startsWithAR = sku.startsWith('AR');
+
+    return hasAntibodyInName || startsWithEK || startsWithAR;
+  }
+
+  /**
    * Calculate and update reorder levels for items based on sales order history
    * 
    * @param {number} lookBackDays - Days to look back (default: 180)
@@ -1009,10 +1045,23 @@ export class BooksReorderLevelService {
       skuGroups[sku].total += (item.total ? Number(item.total) : 0);
     }
 
-    // Calculate reorder_level for each SKU
+    // Calculate reorder_level for each SKU (only for items that should be kept in stock)
     const reorderLevels = {};
+    let filteredCount = 0;
 
     for (const [sku, group] of Object.entries(skuGroups)) {
+      // Check if this item should be kept in stock
+      const itemInfo = {
+        name: group.name,
+        sku: group.sku,
+        purchase_description: group.firstInstance?.purchase_description || group.firstInstance?.description || null,
+      };
+
+      if (!this.isKeepStock(itemInfo)) {
+        filteredCount++;
+        continue; // Skip items that don't meet the keep stock criteria
+      }
+
       // Expected sales in inventory turnover period
       // Formula: (total sales in lookBackDays / lookBackDays) * inventoryTurnoverDays
       const dailyAverage = group.quantity / lookBackDays;
@@ -1035,6 +1084,14 @@ export class BooksReorderLevelService {
           expectedSales: expectedSales.toFixed(2),
         },
       };
+    }
+
+    if (filteredCount > 0) {
+      Logger.info(`Filtered ${filteredCount} items that do not meet keep stock criteria`, {
+        totalItems: Object.keys(skuGroups).length,
+        filteredCount,
+        remainingCount: Object.keys(reorderLevels).length,
+      });
     }
 
     return reorderLevels;

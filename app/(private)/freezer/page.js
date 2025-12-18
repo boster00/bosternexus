@@ -73,13 +73,19 @@ export default function FreezerPage() {
           };
         });
 
-        console.log('[Freezer] Items processed', {
-          totalItems: itemsWithData.length,
-          itemsWithDataPreview: JSON.stringify(itemsWithData).substring(0, 300)
+        // Filter out items where space_to_save is 0
+        const filteredItems = itemsWithData.filter(item => item.space_to_save > 0);
+        
+        const removedCount = itemsWithData.length - filteredItems.length;
+        console.log('[Freezer] Items processed and filtered', {
+          totalItemsBeforeFilter: itemsWithData.length,
+          totalItemsAfterFilter: filteredItems.length,
+          removedCount,
+          itemsWithDataPreview: JSON.stringify(filteredItems).substring(0, 300)
         });
 
-        setItems(itemsWithData);
-        toast.success(`Found ${response.items.length} items in range`);
+        setItems(filteredItems);
+        toast.success(`Found ${filteredItems.length} items in range${removedCount > 0 ? ` (${removedCount} items with space_to_save=0 removed)` : ''}`);
       } else {
         console.error('[Freezer] API response indicates failure', {
           success: response.success,
@@ -103,9 +109,50 @@ export default function FreezerPage() {
     }
   };
 
+  // Generate labels array from items
+  // Each SKU takes multiple labels based on space_to_save (each level = 3 spaces)
+  const generateLabels = () => {
+    if (!items || items.length === 0) return [];
+    
+    const labels = [];
+    items.forEach(item => {
+      // Calculate number of labels needed: each level = 3 spaces
+      const labelsPerSku = Math.ceil(item.space_to_save / 3);
+      
+      // Add this SKU multiple times (one per label)
+      for (let i = 0; i < labelsPerSku; i++) {
+        labels.push({
+          sku: item.sku,
+          space_to_save: item.space_to_save,
+          labelIndex: i + 1, // Which label this is for this SKU (1, 2, 3, etc.)
+          totalLabels: labelsPerSku, // Total labels for this SKU
+        });
+      }
+    });
+    
+    return labels;
+  };
+
+  // Arrange labels in grid: 11 columns per row
+  const arrangeLabelsInGrid = (labels) => {
+    const LABELS_PER_ROW = 11;
+    const rows = [];
+    
+    for (let i = 0; i < labels.length; i += LABELS_PER_ROW) {
+      const row = labels.slice(i, i + LABELS_PER_ROW);
+      rows.push(row);
+    }
+    
+    return rows;
+  };
+
   const handlePrint = () => {
     window.print();
   };
+
+  // Generate labels and arrange in grid
+  const labels = generateLabels();
+  const labelRows = arrangeLabelsInGrid(labels);
 
   return (
     <>
@@ -209,26 +256,25 @@ export default function FreezerPage() {
                 <div className="grid-overlay"></div>
                 
                 {/* Content area */}
-                <div className="paper-content p-4">
+                <div className="paper-content">
                   {items.length > 0 ? (
-                    <div className="space-y-2">
-                      <h2 className="text-lg font-bold mb-4">SKU Range: {beginSku} - {endSku}</h2>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left p-1">SKU</th>
-                            <th className="text-left p-1">Space to Save</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {items.map((item, index) => (
-                            <tr key={index} className="border-b">
-                              <td className="p-1 font-mono">{item.sku}</td>
-                              <td className="p-1 font-semibold">{item.space_to_save}</td>
-                            </tr>
+                    <div className="label-grid">
+                      {labelRows.map((row, rowIndex) => (
+                        <div key={rowIndex} className="label-row">
+                          {row.map((label, labelIndex) => (
+                            <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
+                              <div className="label-content">
+                                <div className="label-sku">{label.sku}</div>
+                                <div className="label-keep">Keep: {label.space_to_save}</div>
+                              </div>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                          {/* Fill remaining cells in row if less than 11 */}
+                          {Array.from({ length: 11 - row.length }).map((_, fillIndex) => (
+                            <div key={`fill-${rowIndex}-${fillIndex}`} className="label-cell label-cell-empty"></div>
+                          ))}
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-full text-gray-400">
@@ -246,26 +292,25 @@ export default function FreezerPage() {
       <div className="print-only">
         <div className="letter-paper">
           <div className="grid-overlay"></div>
-          <div className="paper-content p-4">
+          <div className="paper-content">
             {items.length > 0 ? (
-              <div className="space-y-2">
-                <h2 className="text-lg font-bold mb-4">SKU Range: {beginSku} - {endSku}</h2>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-1">SKU</th>
-                      <th className="text-left p-1">Space to Save</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, index) => (
-                      <tr key={index} className="border-b">
-                        <td className="p-1 font-mono">{item.sku}</td>
-                        <td className="p-1 font-semibold">{item.space_to_save}</td>
-                      </tr>
+              <div className="label-grid">
+                {labelRows.map((row, rowIndex) => (
+                  <div key={rowIndex} className="label-row">
+                    {row.map((label, labelIndex) => (
+                      <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
+                        <div className="label-content">
+                          <div className="label-sku">{label.sku}</div>
+                          <div className="label-keep">Keep: {label.space_to_save}</div>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                    {/* Fill remaining cells in row if less than 11 */}
+                    {Array.from({ length: 11 - row.length }).map((_, fillIndex) => (
+                      <div key={`fill-${rowIndex}-${fillIndex}`} className="label-cell label-cell-empty"></div>
+                    ))}
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
@@ -325,6 +370,66 @@ export default function FreezerPage() {
           z-index: 2;
           width: 100%;
           height: 100%;
+          padding: 0;
+        }
+
+        /* Label grid layout */
+        .label-grid {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .label-row {
+          display: flex;
+          width: 100%;
+          height: 33mm; /* 1.5 inch = 38.1mm, but using 33mm as specified */
+          border-bottom: 1px solid #ccc;
+        }
+
+        .label-cell {
+          width: 16mm;
+          height: 100%;
+          border-right: 1px solid #ccc;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          box-sizing: border-box;
+        }
+
+        .label-cell:last-child {
+          border-right: none;
+        }
+
+        .label-cell-empty {
+          background: transparent;
+        }
+
+        .label-content {
+          transform: rotate(90deg);
+          transform-origin: center;
+          white-space: nowrap;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          width: 33mm; /* Height of row becomes width when rotated */
+          height: 16mm; /* Width of cell becomes height when rotated */
+        }
+
+        .label-sku {
+          font-size: 18px;
+          font-weight: bold;
+          font-family: monospace;
+          margin-bottom: 2px;
+        }
+
+        .label-keep {
+          font-size: 10px;
+          color: #666;
         }
 
         /* Print styles - exact letter size */
@@ -371,6 +476,21 @@ export default function FreezerPage() {
               linear-gradient(to right, #000 0.2px, transparent 0.2px),
               linear-gradient(to bottom, #000 0.2px, transparent 0.2px) !important;
             background-size: 1mm 1mm !important;
+          }
+
+          .label-row {
+            height: 33mm !important;
+            page-break-inside: avoid !important;
+          }
+
+          .label-cell {
+            width: 16mm !important;
+            height: 33mm !important;
+          }
+
+          .label-content {
+            width: 33mm !important;
+            height: 16mm !important;
           }
         }
       `}</style>
