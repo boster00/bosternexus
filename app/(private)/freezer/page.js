@@ -445,7 +445,7 @@ export default function FreezerPage() {
         @media print {
           @page {
             size: letter;
-            margin: 0;
+            margin: 0 0 0 2mm; /* 2mm left margin */
           }
 
           * {
@@ -467,23 +467,31 @@ export default function FreezerPage() {
           .react-hot-toast,
           [class*="toast"],
           [id*="toast"],
-          div[role="status"],
-          div[aria-live],
+          div[role="status"]:not(.label-content):not(.label-cell),
+          div[aria-live]:not(.label-content):not(.label-cell),
           .__react-hot-toast-container,
           /* Target the Toaster component container */
           div[class*="react-hot-toast"],
           div[class*="react-hot-toast"] > div,
+          div[class*="react-hot-toast"] > *,
           /* Hide toast icons, checkmarks, and all child elements */
-          svg[class*="toast"],
-          svg[data-icon],
           [class*="toast"] svg,
           [class*="toast"] path,
           [class*="toast"] circle,
           [class*="toast"] *,
-          /* Hide any success/checkmark icons */
-          [class*="success"],
-          [class*="check"],
-          [class*="icon"] {
+          /* Hide any success/checkmark icons outside of label content */
+          [class*="success"]:not(.label-content):not(.label-cell):not(.label-row):not(.label-grid),
+          [class*="check"]:not(.label-content):not(.label-cell):not(.label-row):not(.label-grid),
+          /* Hide fixed/absolute positioned elements that are likely toast overlays */
+          div[style*="position: fixed"],
+          div[style*="position:fixed"],
+          div[style*="position: absolute"][style*="top: 0"],
+          div[style*="position:absolute"][style*="top:0"],
+          /* Hide elements with high z-index that might be floating toasts */
+          [style*="z-index: 999"]:not(.label-content):not(.label-cell):not(.label-row):not(.label-grid):not(.paper-content):not(.letter-paper),
+          [style*="z-index:999"]:not(.label-content):not(.label-cell):not(.label-row):not(.label-grid):not(.paper-content):not(.letter-paper),
+          [style*="z-index: 9999"]:not(.label-content):not(.label-cell):not(.label-row):not(.label-grid):not(.paper-content):not(.letter-paper),
+          [style*="z-index:9999"]:not(.label-content):not(.label-cell):not(.label-row):not(.label-grid):not(.paper-content):not(.letter-paper) {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
@@ -493,6 +501,7 @@ export default function FreezerPage() {
             height: 0 !important;
             max-width: 0 !important;
             max-height: 0 !important;
+            overflow: hidden !important;
           }
 
           /* Ensure body and html have no margins/padding for print */
@@ -522,8 +531,9 @@ export default function FreezerPage() {
             width: 8.5in !important;
             height: 11in !important;
             box-shadow: none !important;
-            margin: 0 !important;
+            margin: 0 0 0 2mm !important; /* 2mm left margin */
             padding: 0 !important;
+            border-left: 1px solid #000 !important; /* Left border */
             position: relative !important;
             page-break-after: always !important;
             page-break-inside: avoid !important;
