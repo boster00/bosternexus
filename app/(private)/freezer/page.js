@@ -133,9 +133,10 @@ export default function FreezerPage() {
     return labels;
   };
 
-  // Arrange labels in grid: 11 columns per row
+  // Arrange labels in grid: 11 columns per row, max 7 rows per page
   const arrangeLabelsInGrid = (labels) => {
     const LABELS_PER_ROW = 11;
+    const ROWS_PER_PAGE = 7;
     const rows = [];
     
     for (let i = 0; i < labels.length; i += LABELS_PER_ROW) {
@@ -143,7 +144,14 @@ export default function FreezerPage() {
       rows.push(row);
     }
     
-    return rows;
+    // Group rows into pages (7 rows per page)
+    const pages = [];
+    for (let i = 0; i < rows.length; i += ROWS_PER_PAGE) {
+      const pageRows = rows.slice(i, i + ROWS_PER_PAGE);
+      pages.push(pageRows);
+    }
+    
+    return { rows, pages };
   };
 
   const handlePrint = () => {
@@ -152,7 +160,7 @@ export default function FreezerPage() {
 
   // Generate labels and arrange in grid
   const labels = generateLabels();
-  const labelRows = arrangeLabelsInGrid(labels);
+  const { rows: labelRows, pages: labelPages } = arrangeLabelsInGrid(labels);
 
   return (
     <>
@@ -169,7 +177,7 @@ export default function FreezerPage() {
           </div>
 
           {/* Two Panel Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-6">
             {/* Left Panel - Controls */}
             <div className="space-y-4">
               {/* SKU Range Input */}
@@ -259,7 +267,7 @@ export default function FreezerPage() {
                 <div className="paper-content">
                   {items.length > 0 ? (
                     <div className="label-grid">
-                      {labelRows.map((row, rowIndex) => (
+                      {labelPages[0]?.map((row, rowIndex) => (
                         <div key={rowIndex} className="label-row">
                           {row.map((label, labelIndex) => (
                             <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
@@ -275,6 +283,11 @@ export default function FreezerPage() {
                           ))}
                         </div>
                       ))}
+                      {labelPages.length > 1 && (
+                        <div className="text-xs text-gray-400 mt-2 text-center">
+                          + {labelPages.length - 1} more page{labelPages.length - 1 > 1 ? 's' : ''}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-full text-gray-400">
@@ -288,19 +301,20 @@ export default function FreezerPage() {
         </div>
       </div>
 
-      {/* Print-only version */}
+      {/* Print-only version - one page per 7 rows */}
       <div className="print-only">
-        <div className="letter-paper">
-          <div className="grid-overlay"></div>
-          <div className="paper-content">
-            {items.length > 0 ? (
+        {items.length > 0 && labelPages.map((pageRows, pageIndex) => (
+          <div key={pageIndex} className="letter-paper print-page">
+            <div className="grid-overlay"></div>
+            <div className="paper-content">
               <div className="label-grid">
-                {labelRows.map((row, rowIndex) => (
+                {pageRows.map((row, rowIndex) => (
                   <div key={rowIndex} className="label-row">
                     {row.map((label, labelIndex) => (
                       <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
                         <div className="label-content">
                           <div className="label-sku">{label.sku}</div>
+                          <div className="label-keep">Keep {label.space_to_save}</div>
                         </div>
                       </div>
                     ))}
@@ -311,13 +325,9 @@ export default function FreezerPage() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                No items to display
-              </div>
-            )}
+            </div>
           </div>
-        </div>
+        ))}
       </div>
 
       <style>{`
@@ -348,6 +358,9 @@ export default function FreezerPage() {
           position: relative;
           margin: 0 auto;
           overflow: hidden;
+          /* Scale down to fit in 70% width panel while maintaining aspect ratio */
+          max-width: 100%;
+          aspect-ratio: 8.5 / 11;
         }
 
         .grid-overlay {
@@ -453,22 +466,24 @@ export default function FreezerPage() {
           /* Show print-only content */
           .print-only {
             display: block !important;
-            width: 8.5in;
-            height: 11in;
             margin: 0;
             padding: 0;
             background: white;
           }
 
-          .print-only .letter-paper {
+          .print-only .print-page {
             width: 8.5in !important;
             height: 11in !important;
             box-shadow: none !important;
             margin: 0 !important;
             padding: 0 !important;
             position: relative !important;
-            page-break-after: avoid !important;
+            page-break-after: always !important;
             page-break-inside: avoid !important;
+          }
+
+          .print-only .print-page:last-child {
+            page-break-after: auto !important;
           }
 
           .grid-overlay {
@@ -491,6 +506,20 @@ export default function FreezerPage() {
           .label-content {
             width: 33mm !important;
             height: 16mm !important;
+          }
+
+          .label-keep {
+            font-size: 10px !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          .label-sku {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
         }
       `}</style>
