@@ -454,11 +454,17 @@ export default function FreezerPage() {
             color-adjust: exact !important;
           }
 
-          /* Hide navigation bar and screen-only content */
+          /* Hide navigation bar, screen-only content, and toast notifications */
           .no-print-nav,
           nav,
-          .no-print {
+          .no-print,
+          [data-sonner-toast],
+          [data-sonner-toaster],
+          .react-hot-toast,
+          [class*="toast"],
+          [id*="toast"] {
             display: none !important;
+            visibility: hidden !important;
           }
 
           /* Ensure body and html have no margins/padding for print */
