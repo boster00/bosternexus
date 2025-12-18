@@ -9,6 +9,7 @@ export default function FreezerPage() {
   const [endSku, setEndSku] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showKeepText, setShowKeepText] = useState(false);
 
   // Generate SKU range and fetch items
   const handleGenerateRange = async () => {
@@ -225,6 +226,22 @@ export default function FreezerPage() {
                 </div>
               </div>
 
+              {/* Display Options */}
+              <div className="card card-border bg-base-100 p-6">
+                <h2 className="text-xl font-bold mb-4">Display Options</h2>
+                <div className="form-control">
+                  <label className="label cursor-pointer">
+                    <span className="label-text">Show "Keep X" text on labels</span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-primary"
+                      checked={showKeepText}
+                      onChange={(e) => setShowKeepText(e.target.checked)}
+                    />
+                  </label>
+                </div>
+              </div>
+
               {/* Results Table */}
               {items.length > 0 && (
                 <div className="card card-border bg-base-100 p-6">
@@ -273,7 +290,9 @@ export default function FreezerPage() {
                             <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
                               <div className="label-content">
                                 <div className="label-sku">{label.sku}</div>
-                                <div className="label-keep">Keep {label.space_to_save}</div>
+                                {showKeepText && (
+                                  <div className="label-keep">Keep {label.space_to_save}</div>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -314,7 +333,9 @@ export default function FreezerPage() {
                       <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
                         <div className="label-content">
                           <div className="label-sku">{label.sku}</div>
-                          <div className="label-keep">Keep {label.space_to_save}</div>
+                          {showKeepText && (
+                            <div className="label-keep">Keep {label.space_to_save}</div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -429,14 +450,14 @@ export default function FreezerPage() {
         }
 
         .label-sku {
-          font-size: 18px;
+          font-size: 20px;
           font-weight: bold;
           font-family: monospace;
-          margin-bottom: 2px;
+          margin-bottom: 1px;
         }
 
         .label-keep {
-          font-size: 10px;
+          font-size: 9px;
           color: #666;
         }
 
@@ -565,15 +586,17 @@ export default function FreezerPage() {
             height: 16mm !important;
           }
 
-          .label-keep {
-            font-size: 10px !important;
-            color: #000 !important;
+          .label-sku {
+            font-size: 23px !important;
+            margin-bottom: -8px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
 
-          .label-sku {
+          .label-keep {
+            font-size: 9px !important;
+            color: #000 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
