@@ -263,21 +263,201 @@ export class DataAccessLayer {
         if (result.error.code === 'PGRST116') {
           return { data: null, error: null };
         }
+        
+        // Build detailed error information
+        const errorDetails = {
+          message: result.error.message,
+          code: result.error.code,
+          details: result.error.details,
+          hint: result.error.hint,
+          table: tableName,
+        };
+
+        // Log full error for debugging (use console.error as fallback if Logger not available)
+        console.error(`[DAL] Database select error on ${tableName} (single):`, {
+          error: result.error,
+          errorDetails,
+          table: tableName,
+        });
+
         if (result.error.code === '42501' || result.error.message?.includes('policy')) {
-          throw new Error(`RLS policy violation on ${tableName}: ${result.error.message}`);
+          throw new Error(
+            `RLS policy violation on ${tableName}: ${result.error.message}${result.error.details ? ` (Details: ${result.error.details})` : ''}${result.error.hint ? ` (Hint: ${result.error.hint})` : ''}`
+          );
         }
-        throw new Error(`Database select error on ${tableName}: ${result.error.message}`);
+
+        // Include all error details in the thrown error
+        const errorMessage = `Database select error on ${tableName}: ${result.error.message || 'Unknown error'}`;
+        const fullError = new Error(errorMessage);
+        fullError.code = result.error.code;
+        fullError.details = result.error.details;
+        fullError.hint = result.error.hint;
+        fullError.originalError = result.error;
+        throw fullError;
       }
       return { data: result.data, error: null };
     }
 
-    const { data, error } = await query;
-
-    if (error) {
-      if (error.code === '42501' || error.message?.includes('policy')) {
-        throw new Error(`RLS policy violation on ${tableName}: ${error.message}`);
+    // #region agent log
+    // Capture query details before execution
+    const queryDetails = {
+      tableName,
+      hasQuery: !!query,
+      queryType: typeof query,
+      columns: options.columns,
+    };
+    
+    // Try to extract URL and method from Supabase query if available
+    try {
+      if (query && typeof query === 'object') {
+        // Supabase queries have internal properties we can inspect
+        const queryKeys = Object.keys(query);
+        queryDetails.queryKeys = queryKeys;
+        
+        // Try to get URL if available (Supabase stores this internally)
+        if (query.url) {
+          const urlString = query.url.toString();
+          queryDetails.url = urlString;
+          queryDetails.urlLength = urlString.length;
+          queryDetails.urlTooLong = urlString.length > 2000; // Common URL length limit
+          
+          // Extract the query parameters part to see what's in the URL
+          try {
+            const urlObj = new URL(urlString);
+            queryDetails.urlPath = urlObj.pathname;
+            queryDetails.urlSearchParams = urlObj.search;
+            queryDetails.urlSearchParamsLength = urlObj.search.length;
+            
+            // Count how many items are in .in() filters by parsing the search params
+            const searchParams = urlObj.searchParams;
+            for (const [key, value] of searchParams.entries()) {
+              if (key.includes('in.') || value.includes('in.')) {
+                // Try to count items in the in() filter
+                const inMatch = value.match(/in\.\(([^)]+)\)/);
+                if (inMatch) {
+                  const items = inMatch[1].split(',');
+                  queryDetails[`${key}_inCount`] = items.length;
+                  queryDetails[`${key}_inSample`] = items.slice(0, 5);
+                }
+              }
+            }
+          } catch (urlParseError) {
+            queryDetails.urlParseError = String(urlParseError);
+          }
+        }
+        if (query.method) {
+          queryDetails.method = query.method;
+        }
+        if (query.headers) {
+          queryDetails.hasHeaders = true;
+        }
+        if (query.body) {
+          queryDetails.hasBody = true;
+          queryDetails.bodyType = typeof query.body;
+          // Try to stringify body if it's an object
+          try {
+            queryDetails.bodyPreview = typeof query.body === 'string' 
+              ? query.body.substring(0, 500) 
+              : JSON.stringify(query.body).substring(0, 500);
+          } catch (e) {
+            queryDetails.bodyError = String(e);
+          }
+        }
       }
-      throw new Error(`Database select error on ${tableName}: ${error.message}`);
+    } catch (e) {
+      queryDetails.inspectionError = String(e);
+    }
+    
+    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:320',message:'Before query execution - detailed payload with URL length',data:queryDetails,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    
+    const { data, error } = await query;
+    
+    // #region agent log
+    // Capture detailed error information
+    const errorDetails = {
+      tableName,
+      hasData: !!data,
+      dataCount: data?.length || 0,
+      hasError: !!error,
+    };
+    
+    if (error) {
+      errorDetails.errorMessage = error?.message;
+      errorDetails.errorCode = error?.code;
+      errorDetails.errorDetails = error?.details;
+      errorDetails.errorHint = error?.hint;
+      errorDetails.errorString = String(error);
+      errorDetails.errorType = typeof error;
+      errorDetails.errorConstructor = error?.constructor?.name;
+      
+      // Try to extract more error information
+      try {
+        errorDetails.errorKeys = Object.keys(error || {});
+        errorDetails.errorJSON = JSON.stringify(error, Object.getOwnPropertyNames(error));
+        
+        // If error has a response property (HTTP error), capture it
+        if (error.response) {
+          errorDetails.hasResponse = true;
+          errorDetails.responseStatus = error.response?.status;
+          errorDetails.responseStatusText = error.response?.statusText;
+          errorDetails.responseData = error.response?.data;
+        }
+        
+        // If error has a request property (HTTP request), capture URL
+        if (error.request) {
+          errorDetails.hasRequest = true;
+          if (error.request?.url) {
+            errorDetails.requestUrl = error.request.url.toString();
+          }
+        }
+      } catch (e) {
+        errorDetails.errorInspectionError = String(e);
+      }
+    }
+    
+    fetch('http://127.0.0.1:7242/ingest/08ff2235-5c43-4d24-9fed-d67ac84833be',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'data-access-layer.js:325',message:'After query execution - detailed error info',data:errorDetails,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    if (error) {
+      // Log the raw error object with all its properties
+      console.error(`[DAL] Database select error on ${tableName}:`, {
+        error,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorKeys: Object.keys(error || {}),
+        errorString: String(error),
+        errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        table: tableName,
+      });
+
+      // Build detailed error message with all available error information
+      const errorDetails = {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        table: tableName,
+      };
+
+      if (error.code === '42501' || error.message?.includes('policy')) {
+        throw new Error(
+          `RLS policy violation on ${tableName}: ${error.message}${error.details ? ` (Details: ${error.details})` : ''}${error.hint ? ` (Hint: ${error.hint})` : ''}`
+        );
+      }
+
+      // Include all error details in the thrown error
+      const errorMessage = `Database select error on ${tableName}: ${error.message || 'Unknown error'}`;
+      const fullError = new Error(errorMessage);
+      fullError.code = error.code;
+      fullError.details = error.details;
+      fullError.hint = error.hint;
+      fullError.originalError = error;
+      throw fullError;
     }
 
     return { data, error: null };

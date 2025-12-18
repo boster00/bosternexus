@@ -53,7 +53,10 @@ export async function POST(req) {
       errors: result.errors,
       lastSyncedDate: result.lastSyncedDate,
       rawZohoResponses: result.rawZohoResponses || {}, // Include raw Zoho JSON responses
-      summary: `Synced ${Object.values(result.synced).reduce((sum, count) => sum + count, 0)} total records across ${Object.keys(result.synced).length} modules`,
+      stopped: result.stopped || false, // Include stop status
+      summary: result.stopped 
+        ? `Sync stopped. Synced ${Object.values(result.synced).reduce((sum, count) => sum + count, 0)} total records across ${Object.keys(result.synced).length} modules before stopping.`
+        : `Synced ${Object.values(result.synced).reduce((sum, count) => sum + count, 0)} total records across ${Object.keys(result.synced).length} modules`,
     });
   } catch (error) {
     console.error("Error syncing historical transactions:", error);

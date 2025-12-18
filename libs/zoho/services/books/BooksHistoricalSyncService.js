@@ -9,6 +9,7 @@ import zoho from '@/libs/zoho';
 import { ZohoOrchestrator } from '@/libs/zoho/orchestration/ZohoOrchestrator';
 import { DataAccessLayer } from '@/libs/supabase/data-access-layer';
 import { Logger } from '@/libs/utils/logger';
+import { syncStopManager } from './SyncStopManager';
 import {
   BooksInvoiceEntity,
   BooksSalesOrderEntity,
@@ -538,22 +539,72 @@ export class BooksHistoricalSyncService {
     const oldestDate = await this.getOldestTransactionDate(moduleName);
     
     // Calculate date range
-    const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999); // End of today
+    // Plan: "get records equal or older than that date but earlier than the limit date"
+    // If oldestDate exists, start from that date and go backwards (older) until limitDate
+    // If no oldestDate, start from today and go backwards until limitDate
+    
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+    
     const limitDate = new Date();
     limitDate.setDate(limitDate.getDate() - days);
     limitDate.setHours(0, 0, 0, 0); // Start of limit date
 
     // Determine date range for sync
     // Plan: "get records equal or older than that date but earlier than the limit date"
-    // We sync from today backwards to the limit date
-    // If oldest date exists and is within range, we'll continue from there
-    const dateEnd = endDate;
-    const dateStart = limitDate;
+    // If oldestDate exists: we want records OLDER than oldestDate (going backwards in time)
+    //   - We already have records at oldestDate, so fetch records with date < oldestDate
+    //   - dateEnd: oldestDate - 1 day (to get records older than what we have)
+    //   - dateStart: limitDate (go backwards until this date)
+    // If no oldestDate: start from today and go backwards
+    //   - dateEnd: today
+    //   - dateStart: limitDate
     
-    // If we have an oldest date within the range, we can use it as a starting point
-    // But we still sync the full range to ensure we get all records
-    // The resumability comes from checking existing records and their modified times
+    let dateStart, dateEnd;
+    
+    if (oldestDate) {
+      // We have existing records - sync records OLDER than the oldest record
+      // Set dateEnd to one day before oldestDate to get records older than what we have
+      dateEnd = new Date(oldestDate);
+      dateEnd.setDate(dateEnd.getDate() - 1); // One day before oldest record
+      dateEnd.setHours(23, 59, 59, 999); // End of that day
+      dateStart = limitDate;
+      
+      // If oldestDate is already before limitDate, we've synced everything in range
+      if (oldestDate < limitDate) {
+        Logger.info(`Oldest date (${oldestDate.toISOString()}) is before limit date (${limitDate.toISOString()}) for ${moduleName}. Nothing to sync.`, {
+          moduleName,
+          oldestDate: oldestDate.toISOString(),
+          limitDate: limitDate.toISOString(),
+        });
+        return {
+          synced: 0,
+          errors: [],
+          rawZohoResponses: [],
+          stopped: false,
+        };
+      }
+      
+      // If dateEnd (oldestDate - 1 day) is before limitDate, we've already synced everything
+      if (dateEnd < limitDate) {
+        Logger.info(`Oldest date minus 1 day (${dateEnd.toISOString()}) is before limit date (${limitDate.toISOString()}) for ${moduleName}. Nothing to sync.`, {
+          moduleName,
+          oldestDate: oldestDate.toISOString(),
+          dateEnd: dateEnd.toISOString(),
+          limitDate: limitDate.toISOString(),
+        });
+        return {
+          synced: 0,
+          errors: [],
+          rawZohoResponses: [],
+          stopped: false,
+        };
+      }
+    } else {
+      // No existing records - start from today and go backwards
+      dateEnd = today;
+      dateStart = limitDate;
+    }
 
     Logger.info(`Date range for ${moduleName}`, {
       moduleName,
@@ -561,6 +612,7 @@ export class BooksHistoricalSyncService {
       dateEnd: dateEnd.toISOString(),
       limitDate: limitDate.toISOString(),
       oldestExisting: oldestDate ? oldestDate.toISOString() : 'none',
+      note: oldestDate ? 'Starting from oldest record date, going backwards to limit date' : 'No existing records, starting from today going backwards to limit date',
     });
 
     const errors = [];
@@ -592,8 +644,13 @@ export class BooksHistoricalSyncService {
         // date_start: Filter records where date >= dateStart
         // date_end: Filter records where date <= dateEnd
         // Using toISOString().split('T')[0] ensures yyyy-mm-dd format
+        // Note: If oldestDate exists, dateEnd is oldestDate - 1 day (to get older records)
         params.date_start = dateStart.toISOString().split('T')[0];
         params.date_end = dateEnd.toISOString().split('T')[0];
+        
+        // If we have an oldestDate, we want records STRICTLY older (date < oldestDate)
+        // Zoho Books API doesn't support < operator directly, so we use date_end = oldestDate - 1 day
+        // This is already handled above by setting dateEnd = oldestDate - 1 day
 
         // Fetch raw response directly from Zoho to get the original JSON structure
         // The path is: result[0].data.salesorders[0] (for salesorders module)
@@ -646,6 +703,13 @@ export class BooksHistoricalSyncService {
           moduleName,
           page,
           count: batch.length,
+          params: {
+            per_page: params.per_page,
+            page: params.page,
+            sort_column: params.sort_column,
+            date_start: params.date_start,
+            date_end: params.date_end,
+          },
         });
 
         // Store raw batch response for display
@@ -658,9 +722,30 @@ export class BooksHistoricalSyncService {
           });
         }
 
+        // Check for stop request before processing batch
+        if (syncStopManager.isStopRequested(userId)) {
+          Logger.info(`Stop requested for ${moduleName}, stopping sync`, { moduleName, page });
+          hasMore = false;
+          break;
+        }
+
         // Process records ONE BY ONE: fetch full details, sync completely, then move to next
         // This ensures each record is synced before pulling the next one
         for (let i = 0; i < batch.length; i++) {
+          // Check for stop request before each record
+          if (syncStopManager.isStopRequested(userId)) {
+            Logger.info(`Stop requested for ${moduleName}, stopping at record ${i + 1} of batch ${page}`, { 
+              moduleName, 
+              page, 
+              record: i + 1 
+            });
+            hasMore = false;
+            break;
+          }
+
+          // Update progress
+          syncStopManager.updateProgress(userId, moduleName, page, i + 1);
+
           const transaction = batch[i];
           const zohoId = transaction[moduleConfig.entity.zohoIdField];
           
@@ -795,16 +880,23 @@ export class BooksHistoricalSyncService {
       }
     }
 
+    const wasStopped = syncStopManager.isStopRequested(userId);
+    
     Logger.info(`Completed sync for module: ${moduleName}`, {
       moduleName,
       synced,
       errors: errors.length,
+      stopped: wasStopped,
     });
+
+    // Don't unregister here - let syncRecentTransactions handle it
+    // This allows stop checks to work across modules
 
     return {
       synced,
       errors,
       rawZohoResponses, // Include raw Zoho responses for this module
+      stopped: wasStopped,
     };
   }
 
@@ -822,7 +914,11 @@ export class BooksHistoricalSyncService {
       errors: [],
       lastSyncedDate: new Date().toISOString(),
       rawZohoResponses: {}, // Store raw Zoho responses per module
+      stopped: false,
     };
+
+    // Register sync at the start (for all modules)
+    syncStopManager.registerSync(userId, modulesToSync[0] || 'all');
 
     Logger.info(`Starting historical sync`, {
       days,
@@ -831,8 +927,26 @@ export class BooksHistoricalSyncService {
 
     // Sync each module sequentially
     for (const moduleName of modulesToSync) {
+      // Check for stop request before starting each module
+      if (syncStopManager.isStopRequested(userId)) {
+        Logger.info(`Stop requested, skipping remaining modules`, { 
+          completedModules: Object.keys(results.synced),
+          remainingModules: modulesToSync.slice(modulesToSync.indexOf(moduleName))
+        });
+        results.stopped = true;
+        break;
+      }
+
       try {
+        // Update progress to show current module
+        syncStopManager.updateProgress(userId, moduleName, 0, 0);
+        
         const moduleResult = await this.syncModule(moduleName, days, userId);
+        
+        // Check if this module was stopped
+        if (moduleResult.stopped) {
+          results.stopped = true;
+        }
         results.synced[moduleName] = moduleResult.synced;
         results.errors.push(...moduleResult.errors.map(e => ({
           ...e,

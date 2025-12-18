@@ -23,14 +23,19 @@ export default function ZohoTestPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [latestSyncDates, setLatestSyncDates] = useState({});
+  const [syncActive, setSyncActive] = useState(false);
   
-  // Toggle states for sample data fetching (default: only salesorders enabled)
-  const [sampleDataModules, setSampleDataModules] = useState({
-    salesorders: true,
-    invoices: false,
-    purchaseorders: false,
-    bills: false,
-  });
+  // Reorder level calculation states
+  const [reorderLookBackDays, setReorderLookBackDays] = useState(180);
+  const [reorderInventoryTurnoverDays, setReorderInventoryTurnoverDays] = useState(90);
+  const [reorderLoading, setReorderLoading] = useState(false);
+  
+  // Step-by-step reorder level states
+  const [step31Loading, setStep31Loading] = useState(false);
+  const [step32Loading, setStep32Loading] = useState(false);
+  const [step33Loading, setStep33Loading] = useState(false);
+  const [step31Data, setStep31Data] = useState(null);
+  const [step32Data, setStep32Data] = useState(null);
 
   // Handle OAuth callback results
   useEffect(() => {
@@ -69,6 +74,7 @@ export default function ZohoTestPage() {
 
   const handleSyncHistorical = async () => {
     setSyncLoading(true);
+    setSyncActive(true);
     setSyncStatus(null);
     try {
       const response = await apiClient.post("/zoho/books/sync-historical", {
@@ -76,7 +82,13 @@ export default function ZohoTestPage() {
       });
       setSyncStatus(response);
       setResults(response);
-      toast.success(`Sync completed: ${response.summary}`);
+      
+      if (response.stopped) {
+        toast(`Sync stopped by user. ${response.summary || 'Partial sync completed.'}`, { icon: '⚠️' });
+      } else {
+        toast.success(`Sync completed: ${response.summary}`);
+      }
+      
       // Reload latest sync dates
       await loadLatestSyncDates();
     } catch (error) {
@@ -85,6 +97,21 @@ export default function ZohoTestPage() {
       setResults({ error: error.message });
     } finally {
       setSyncLoading(false);
+      setSyncActive(false);
+    }
+  };
+
+  const handleStopSync = async () => {
+    try {
+      const response = await apiClient.post("/zoho/books/sync-historical/stop");
+      if (response.success) {
+        toast.success("Stop request sent. Sync will stop at the next checkpoint.");
+        setSyncActive(false);
+      } else {
+        toast(response.message || "No active sync found to stop", { icon: '⚠️' });
+      }
+    } catch (error) {
+      toast.error(`Error stopping sync: ${error.message}`);
     }
   };
 
@@ -128,101 +155,131 @@ export default function ZohoTestPage() {
     setAuthStatus({ [service]: status });
   };
 
-  const handleGetList = async () => {
-    if (!module) {
-      toast.error("Please select a module");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await apiClient.post("/zoho/test", {
-        action: "getList",
-        service,
-        module,
-        limit: limit || 5,
-      });
-      setResults(response);
-      toast.success(`Retrieved ${response.count || 0} records`);
-    } catch (error) {
-      toast.error(`Error: ${error.message}`);
-      setResults({ error: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGetById = async () => {
-    if (!module || !recordId) {
-      toast.error("Please provide both module and record ID");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await apiClient.post("/zoho/test", {
-        action: "getById",
-        service,
-        module,
-        recordId,
-      });
-      setResults(response);
-      toast.success("Record retrieved successfully");
-    } catch (error) {
-      toast.error(`Error: ${error.message}`);
-      setResults({ error: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    if (!module || !searchCriteria) {
-      toast.error("Please provide both module and search criteria");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await apiClient.post("/zoho/test", {
-        action: "search",
-        service,
-        module,
-        searchCriteria,
-      });
-      setResults(response);
-      toast.success(`Found ${response.count || 0} matching records`);
-    } catch (error) {
-      toast.error(`Error: ${error.message}`);
-      setResults({ error: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSyncItems = async () => {
+  const handleCalculateReorderLevels = async () => {
     if (service !== "books") {
-      toast.error("Item sync is only available for Zoho Books");
+      toast.error("Reorder level calculation is only available for Zoho Books");
       return;
     }
 
-    setLoading(true);
+    setReorderLoading(true);
     try {
-      const response = await apiClient.post("/zoho/books/items/sync", {
-        per_page: 5,
-        page: 1,
+      const response = await apiClient.post("/zoho/books/calculate-reorder-levels", {
+        lookBackDays: reorderLookBackDays || 180,
+        inventoryTurnoverDays: reorderInventoryTurnoverDays || 90,
       });
       setResults(response);
       if (response.success) {
-        toast.success(`Successfully synced ${response.data?.synced || 0} items to database`);
+        toast.success(`Successfully updated reorder levels for ${response.updated || 0} items`);
       } else {
-        toast.error(`Sync completed with errors: ${response.message}`);
+        toast(`Calculation completed with ${response.errors?.length || 0} error(s)`, { icon: '⚠️' });
       }
     } catch (error) {
       toast.error(`Error: ${error.message}`);
       setResults({ error: error.message });
     } finally {
-      setLoading(false);
+      setReorderLoading(false);
+    }
+  };
+
+  // Step 3.1: Get sample sales orders and line items
+  const handleStep31 = async () => {
+    if (service !== "books") {
+      toast.error("This step is only available for Zoho Books");
+      return;
+    }
+
+    setStep31Loading(true);
+    try {
+      const response = await apiClient.get("/zoho/books/reorder-levels/step-3-1?limit=5");
+      setStep31Data(response);
+      setResults({
+        step: '3.1',
+        ...response,
+      });
+      if (response.success) {
+        toast.success(`Found ${response.summary?.salesOrderCount || 0} sales orders with ${response.summary?.lineItemCount || 0} line items`);
+      } else {
+        toast.error(response.error || "Step 3.1 failed");
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+      setResults({ step: '3.1', error: error.message });
+    } finally {
+      setStep31Loading(false);
+    }
+  };
+
+  // Step 3.2: Summarize line items into items array
+  const handleStep32 = async () => {
+    if (service !== "books") {
+      toast.error("This step is only available for Zoho Books");
+      return;
+    }
+
+    if (!step31Data || !step31Data.lineItems || step31Data.lineItems.length === 0) {
+      toast.error("Please run Step 3.1 first to get line items");
+      return;
+    }
+
+    setStep32Loading(true);
+    try {
+      const response = await apiClient.post("/zoho/books/reorder-levels/step-3-2", {
+        lineItems: step31Data.lineItems,
+        maxQuantity: 5,
+        lookBackDays: reorderLookBackDays || 180,
+        inventoryTurnoverDays: reorderInventoryTurnoverDays || 90,
+      });
+      setStep32Data(response);
+      setResults({
+        step: '3.2',
+        ...response,
+      });
+      if (response.success) {
+        const itemCount = response.summary?.uniqueItemCount || 0;
+        const reorderCount = response.summary?.itemsWithReorderLevel || 0;
+        toast.success(`Summarized ${itemCount} unique items, calculated ${reorderCount} reorder levels`);
+      } else {
+        toast.error(response.error || "Step 3.2 failed");
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+      setResults({ step: '3.2', error: error.message });
+    } finally {
+      setStep32Loading(false);
+    }
+  };
+
+  // Step 3.3: Upload items to database
+  const handleStep33 = async () => {
+    if (service !== "books") {
+      toast.error("This step is only available for Zoho Books");
+      return;
+    }
+
+    if (!step32Data || !step32Data.items || step32Data.items.length === 0) {
+      toast.error("Please run Step 3.2 first to get summarized items");
+      return;
+    }
+
+    setStep33Loading(true);
+    try {
+      const response = await apiClient.post("/zoho/books/reorder-levels/step-3-3", {
+        items: step32Data.items,
+      });
+      setResults({
+        step: '3.3',
+        ...response,
+      });
+      if (response.success) {
+        toast.success(`Processed ${response.updated || 0} items`);
+      } else {
+        toast.warning(`Processed ${response.updated || 0} items with ${response.errors?.length || 0} error(s)`);
+      }
+    } catch (error) {
+      toast.error(`Error: ${error.message}`);
+      setResults({ step: '3.3', error: error.message });
+    } finally {
+      setStep33Loading(false);
     }
   };
 
@@ -287,7 +344,7 @@ export default function ZohoTestPage() {
       const errorCount = Object.keys(errors).length;
       
       if (errorCount > 0) {
-        toast.warning(`Retrieved ${totalCount} records with ${errorCount} error(s)`);
+        toast(`Retrieved ${totalCount} records with ${errorCount} error(s)`, { icon: '⚠️' });
       } else {
         toast.success(`Retrieved ${totalCount} records from ${enabledModules.length} module(s)`);
       }
@@ -299,12 +356,6 @@ export default function ZohoTestPage() {
     }
   };
 
-  const handleToggleSampleModule = (module) => {
-    setSampleDataModules(prev => ({
-      ...prev,
-      [module]: !prev[module],
-    }));
-  };
 
   return (
     <main className="min-h-screen p-8 pb-24">
@@ -349,273 +400,10 @@ export default function ZohoTestPage() {
               </div>
             </div>
 
-            {/* Get List Section */}
-            <div className="card card-border bg-base-100 p-6">
-              <h2 className="text-xl font-bold mb-4">2. Get List from Module</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="label">
-                    <span className="label-text">Module</span>
-                  </label>
-                  <select
-                    className="select select-bordered w-full"
-                    value={module}
-                    onChange={(e) => setModule(e.target.value)}
-                  >
-                    <option value="">Select a module...</option>
-                    {getModulesForService().map((mod) => (
-                      <option key={mod} value={mod}>
-                        {mod}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    <span className="label-text">Limit</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="200"
-                    className="input input-bordered w-full"
-                    placeholder="Enter limit (default: 5)"
-                    value={limit}
-                    onChange={(e) => setLimit(parseInt(e.target.value) || 5)}
-                  />
-                  <label className="label">
-                    <span className="label-text-alt">Maximum number of records to retrieve (default: 5)</span>
-                  </label>
-                </div>
-                <button
-                  className="btn btn-primary w-full"
-                  onClick={handleGetList}
-                  disabled={loading || !module}
-                >
-                  {loading ? "Loading..." : "Get List"}
-                </button>
-              </div>
-            </div>
-
-            {/* Get by ID Section */}
-            <div className="card card-border bg-base-100 p-6">
-              <h2 className="text-xl font-bold mb-4">3. Get Record by ID</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="label">
-                    <span className="label-text">Module</span>
-                  </label>
-                  <select
-                    className="select select-bordered w-full"
-                    value={module}
-                    onChange={(e) => setModule(e.target.value)}
-                  >
-                    <option value="">Select a module...</option>
-                    {getModulesForService().map((mod) => (
-                      <option key={mod} value={mod}>
-                        {mod}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    <span className="label-text">Record ID</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="input input-bordered w-full"
-                    placeholder="Enter record ID"
-                    value={recordId}
-                    onChange={(e) => setRecordId(e.target.value)}
-                  />
-                </div>
-                <button
-                  className="btn btn-primary w-full"
-                  onClick={handleGetById}
-                  disabled={loading || !module || !recordId}
-                >
-                  {loading ? "Loading..." : "Get Record"}
-                </button>
-              </div>
-            </div>
-
-            {/* Search Section */}
-            <div className="card card-border bg-base-100 p-6">
-              <h2 className="text-xl font-bold mb-4">4. Search by Criteria</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="label">
-                    <span className="label-text">Module</span>
-                  </label>
-                  <select
-                    className="select select-bordered w-full"
-                    value={module}
-                    onChange={(e) => setModule(e.target.value)}
-                  >
-                    <option value="">Select a module...</option>
-                    {getModulesForService().map((mod) => (
-                      <option key={mod} value={mod}>
-                        {mod}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    <span className="label-text">Search Criteria</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="input input-bordered w-full"
-                    placeholder="Enter search criteria"
-                    value={searchCriteria}
-                    onChange={(e) => setSearchCriteria(e.target.value)}
-                  />
-                </div>
-
-                {/* Search Criteria Instructions */}
-                <div className="alert alert-info">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    className="stroke-current shrink-0 w-6 h-6"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
-                  </svg>
-                  <div>
-                    <h3 className="font-bold">Search Criteria Format:</h3>
-                    <div className="text-sm mt-2 space-y-1">
-                      <p><strong>Zoho Books:</strong> Simple text search (e.g., "item name")</p>
-                      <p><strong>Zoho CRM:</strong> Use criteria string format:</p>
-                      <ul className="list-disc list-inside ml-4 space-y-1">
-                        <li>Single: <code className="bg-base-200 px-1 rounded">(Last_Name:equals:Smith)</code></li>
-                        <li>Multiple AND: <code className="bg-base-200 px-1 rounded">((Last_Name:equals:Smith)and(Company:equals:Zylker))</code></li>
-                        <li>Multiple OR: <code className="bg-base-200 px-1 rounded">((Last_Name:equals:Smith)or(Company:equals:Zylker))</code></li>
-                        <li>Operators: <code className="bg-base-200 px-1 rounded">equals</code>, <code className="bg-base-200 px-1 rounded">starts_with</code></li>
-                      </ul>
-                      <p><strong>Zoho Desk:</strong> Simple text search (e.g., "ticket subject")</p>
-                      <p className="text-xs opacity-70 mt-2">
-                        For detailed CRM criteria syntax, see{" "}
-                        <a
-                          href="https://www.zoho.com/developer/docs/vertical-solutions/api/v2/search-records.html"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="link link-primary"
-                        >
-                          Zoho CRM Search API Documentation
-                        </a>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  className="btn btn-primary w-full"
-                  onClick={handleSearch}
-                  disabled={loading || !module || !searchCriteria}
-                >
-                  {loading ? "Searching..." : "Search"}
-                </button>
-              </div>
-            </div>
-
-            {/* Fetch Sample Data Section (Books only) */}
-            {service === "books" && (
-              <div className="card card-border bg-base-100 p-6">
-                <h2 className="text-xl font-bold mb-4">5. Fetch Sample Data (5 Records Each)</h2>
-                <div className="space-y-4">
-                  <div className="alert alert-info">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      className="stroke-current shrink-0 w-6 h-6"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      ></path>
-                    </svg>
-                    <div className="text-sm">
-                      <p>Select modules to fetch 5 sample records each. Raw Zoho JSON will be displayed in the results panel.</p>
-                    </div>
-                  </div>
-                  
-                  {/* Toggle checkboxes for each module */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary"
-                        checked={sampleDataModules.salesorders}
-                        onChange={() => handleToggleSampleModule('salesorders')}
-                        disabled={loading}
-                      />
-                      <span className="label-text">Sales Orders</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary"
-                        checked={sampleDataModules.invoices}
-                        onChange={() => handleToggleSampleModule('invoices')}
-                        disabled={loading}
-                      />
-                      <span className="label-text">Invoices</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary"
-                        checked={sampleDataModules.purchaseorders}
-                        onChange={() => handleToggleSampleModule('purchaseorders')}
-                        disabled={loading}
-                      />
-                      <span className="label-text">Purchase Orders</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary"
-                        checked={sampleDataModules.bills}
-                        onChange={() => handleToggleSampleModule('bills')}
-                        disabled={loading}
-                      />
-                      <span className="label-text">Bills</span>
-                    </label>
-                  </div>
-
-                  <button
-                    className="btn btn-primary w-full"
-                    onClick={handleFetchSampleData}
-                    disabled={loading || Object.values(sampleDataModules).every(v => !v)}
-                  >
-                    {loading ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm"></span>
-                        Fetching...
-                      </>
-                    ) : (
-                      "Fetch Sample Data"
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Sync Historical Data Section (Books only) */}
             {service === "books" && (
               <div className="card card-border bg-base-100 p-6">
-                <h2 className="text-xl font-bold mb-4">6. Sync Historical Data</h2>
+                <h2 className="text-xl font-bold mb-4">2. Sync Historical Data</h2>
                 <div className="space-y-4">
                   <div className="alert alert-info">
                     <svg
@@ -671,20 +459,50 @@ export default function ZohoTestPage() {
                     </label>
                   </div>
 
-                  <button
-                    className="btn btn-primary w-full"
-                    onClick={handleSyncHistorical}
-                    disabled={syncLoading}
-                  >
-                    {syncLoading ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm"></span>
-                        Syncing...
-                      </>
-                    ) : (
-                      "Sync Recent Transactions"
-                    )}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      className="btn btn-primary flex-1"
+                      onClick={handleSyncHistorical}
+                      disabled={syncLoading}
+                    >
+                      {syncLoading ? (
+                        <>
+                          <span className="loading loading-spinner loading-sm"></span>
+                          Syncing...
+                        </>
+                      ) : (
+                        "Sync Recent Transactions"
+                      )}
+                    </button>
+                    <button
+                      className="btn btn-error"
+                      onClick={handleStopSync}
+                      disabled={!syncActive}
+                      title={syncActive ? "Stop sync at next checkpoint" : "No active sync"}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                        />
+                      </svg>
+                      Stop
+                    </button>
+                  </div>
 
                   {syncStatus && (
                     <div className="mt-4">
@@ -723,10 +541,10 @@ export default function ZohoTestPage() {
               </div>
             )}
 
-            {/* Sync Items Section (Books only) */}
+            {/* Calculate Reorder Levels Section (Books only) */}
             {service === "books" && (
               <div className="card card-border bg-base-100 p-6">
-                <h2 className="text-xl font-bold mb-4">6. Sync Items to Database</h2>
+                <h2 className="text-xl font-bold mb-4">3. Calculate Reorder Levels</h2>
                 <div className="space-y-4">
                   <div className="alert alert-info">
                     <svg
@@ -743,21 +561,149 @@ export default function ZohoTestPage() {
                       ></path>
                     </svg>
                     <div className="text-sm">
-                      <p>This will:</p>
+                      <p>Calculate and update reorder levels for items based on sales order history:</p>
                       <ol className="list-decimal list-inside mt-1 space-y-1">
-                        <li>Pull 5 items from Zoho Books API</li>
-                        <li>Transform and map the data</li>
-                        <li>Upsert into <code className="bg-base-200 px-1 rounded">zoho_books_items</code> table</li>
+                        <li>Get all line items from sales orders within look-back window</li>
+                        <li>Remove outliers (quantity &gt; 5)</li>
+                        <li>Calculate expected sales in inventory turnover period</li>
+                        <li>Update reorder_level in <code className="bg-base-200 px-1 rounded">zoho_books_items</code> table</li>
                       </ol>
                     </div>
                   </div>
+
+                  <div>
+                    <label className="label">
+                      <span className="label-text">Look Back Days</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="730"
+                      className="input input-bordered w-full"
+                      placeholder="Enter days (default: 180)"
+                      value={reorderLookBackDays}
+                      onChange={(e) => setReorderLookBackDays(parseInt(e.target.value) || 180)}
+                    />
+                    <label className="label">
+                      <span className="label-text-alt">Number of days to look back for sales order data (default: 180)</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="label">
+                      <span className="label-text">Inventory Turnover Days</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      className="input input-bordered w-full"
+                      placeholder="Enter days (default: 90)"
+                      value={reorderInventoryTurnoverDays}
+                      onChange={(e) => setReorderInventoryTurnoverDays(parseInt(e.target.value) || 90)}
+                    />
+                    <label className="label">
+                      <span className="label-text-alt">Target inventory turnover period in days (default: 90)</span>
+                    </label>
+                  </div>
+
                   <button
                     className="btn btn-success w-full"
-                    onClick={handleSyncItems}
-                    disabled={loading}
+                    onClick={handleCalculateReorderLevels}
+                    disabled={reorderLoading}
                   >
-                    {loading ? "Syncing..." : "Sync 5 Items to Database"}
+                    {reorderLoading ? (
+                      <>
+                        <span className="loading loading-spinner loading-sm"></span>
+                        Calculating...
+                      </>
+                    ) : (
+                      "Calculate & Update Reorder Levels"
+                    )}
                   </button>
+
+                  {/* Step-by-Step Testing */}
+                  <div className="divider">OR Test Step-by-Step</div>
+
+                  <div className="space-y-3">
+                    <div className="bg-base-200 p-3 rounded-lg">
+                      <h3 className="font-semibold text-sm mb-2">Step 3.1: Get Sales Orders & Line Items</h3>
+                      <p className="text-xs opacity-70 mb-2">Get 5 most recent sales orders with their line items</p>
+                      <button
+                        className="btn btn-sm btn-primary w-full"
+                        onClick={handleStep31}
+                        disabled={step31Loading}
+                      >
+                        {step31Loading ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs"></span>
+                            Loading...
+                          </>
+                        ) : (
+                          "Step 3.1: Get 5 Sales Orders"
+                        )}
+                      </button>
+                      {step31Data && (
+                        <div className="mt-2 text-xs">
+                          <div className="text-success">✓ {step31Data.summary?.salesOrderCount || 0} sales orders, {step31Data.summary?.lineItemCount || 0} line items</div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-base-200 p-3 rounded-lg">
+                      <h3 className="font-semibold text-sm mb-2">Step 3.2: Summarize & Calculate Reorder Levels</h3>
+                      <p className="text-xs opacity-70 mb-2">Group by SKU, sum quantities (filters qty &gt; 5), and calculate reorder levels</p>
+                      <button
+                        className="btn btn-sm btn-primary w-full"
+                        onClick={handleStep32}
+                        disabled={step32Loading || !step31Data}
+                      >
+                        {step32Loading ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs"></span>
+                            Processing...
+                          </>
+                        ) : (
+                          "Step 3.2: Summarize Items"
+                        )}
+                      </button>
+                      {step32Data && (
+                        <div className="mt-2 text-xs">
+                          <div className="text-success">✓ {step32Data.summary?.uniqueItemCount || 0} unique items, {step32Data.summary?.totalQuantity || 0} total qty</div>
+                          {step32Data.summary?.itemsWithReorderLevel !== undefined && (
+                            <div className="text-success">✓ {step32Data.summary.itemsWithReorderLevel} items with calculated reorder levels</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-base-200 p-3 rounded-lg">
+                      <h3 className="font-semibold text-sm mb-2">Step 3.3: Upload to Database</h3>
+                      <p className="text-xs opacity-70 mb-2">Update items in database with summarized quantities</p>
+                      <button
+                        className="btn btn-sm btn-primary w-full"
+                        onClick={handleStep33}
+                        disabled={step33Loading || !step32Data}
+                      >
+                        {step33Loading ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs"></span>
+                            Uploading...
+                          </>
+                        ) : (
+                          "Step 3.3: Upload Items"
+                        )}
+                      </button>
+                      {results?.step === '3.3' && (
+                        <div className="mt-2 text-xs">
+                          <div className="text-success">✓ Processed {results.updated || 0} items</div>
+                          {results.errors?.length > 0 && (
+                            <div className="text-warning">{results.errors.length} errors</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -792,6 +738,118 @@ export default function ZohoTestPage() {
               )}
             </div>
             <div className="flex-1 overflow-auto">
+              {/* Step-by-Step Results */}
+              {results?.step && (
+                <div className="space-y-4 mb-4">
+                  <div className="bg-base-200 p-4 rounded-lg">
+                    <h3 className="font-semibold mb-2">Step {results.step} Results</h3>
+                    
+                    {/* Logs */}
+                    {results.logs && Array.isArray(results.logs) && results.logs.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium mb-2">Execution Logs:</h4>
+                        <div className="bg-base-100 rounded p-3 max-h-48 overflow-auto">
+                          {results.logs.map((log, idx) => (
+                            <div key={idx} className="text-xs font-mono mb-1">
+                              {log}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step 3.1 Specific Results */}
+                    {results.step === '3.1' && (
+                      <div className="space-y-3">
+                        {results.summary && (
+                          <div className="bg-base-100 p-3 rounded">
+                            <h4 className="text-sm font-medium mb-2">Summary:</h4>
+                            <div className="text-xs space-y-1">
+                              <div>Sales Orders: {results.summary.salesOrderCount}</div>
+                              <div>Line Items: {results.summary.lineItemCount}</div>
+                              <div>Unique Items: {results.summary.uniqueItems}</div>
+                              <div>Total Quantity: {results.summary.totalQuantity}</div>
+                            </div>
+                          </div>
+                        )}
+                        {results.salesOrders && results.salesOrders.length > 0 && (
+                          <details className="bg-base-100 p-3 rounded">
+                            <summary className="text-sm font-medium cursor-pointer">Sales Orders ({results.salesOrders.length})</summary>
+                            <div className="mt-2 text-xs overflow-auto max-h-48">
+                              <pre>{JSON.stringify(results.salesOrders, null, 2)}</pre>
+                            </div>
+                          </details>
+                        )}
+                        {results.lineItems && results.lineItems.length > 0 && (
+                          <details className="bg-base-100 p-3 rounded">
+                            <summary className="text-sm font-medium cursor-pointer">Line Items ({results.lineItems.length})</summary>
+                            <div className="mt-2 text-xs overflow-auto max-h-48">
+                              <pre>{JSON.stringify(results.lineItems, null, 2)}</pre>
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Step 3.2 Specific Results */}
+                    {results.step === '3.2' && (
+                      <div className="space-y-3">
+                        {results.summary && (
+                          <div className="bg-base-100 p-3 rounded">
+                            <h4 className="text-sm font-medium mb-2">Summary:</h4>
+                            <div className="text-xs space-y-1">
+                              <div>Input Line Items: {results.summary.inputLineItemCount}</div>
+                              <div>Filtered (after outliers): {results.summary.filteredLineItemCount}</div>
+                              <div>Outliers Removed: {results.summary.outlierCount}</div>
+                              <div>Unique Items: {results.summary.uniqueItemCount}</div>
+                              <div>Total Quantity: {results.summary.totalQuantity}</div>
+                              <div>Total Value: ${results.summary.totalValue?.toFixed(2)}</div>
+                            </div>
+                          </div>
+                        )}
+                        {results.items && results.items.length > 0 && (
+                          <details className="bg-base-100 p-3 rounded" open>
+                            <summary className="text-sm font-medium cursor-pointer">Summarized Items ({results.items.length})</summary>
+                            <div className="mt-2 text-xs overflow-auto max-h-64">
+                              <pre>{JSON.stringify(results.items, null, 2)}</pre>
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Step 3.3 Specific Results */}
+                    {results.step === '3.3' && (
+                      <div className="space-y-3">
+                        <div className="bg-base-100 p-3 rounded">
+                          <h4 className="text-sm font-medium mb-2">Summary:</h4>
+                          <div className="text-xs space-y-1">
+                            <div>Items Processed: {results.updated || 0}</div>
+                            <div>Errors: {results.errors?.length || 0}</div>
+                          </div>
+                        </div>
+                        {results.details && results.details.length > 0 && (
+                          <details className="bg-base-100 p-3 rounded">
+                            <summary className="text-sm font-medium cursor-pointer">Item Details ({results.details.length})</summary>
+                            <div className="mt-2 text-xs overflow-auto max-h-48">
+                              <pre>{JSON.stringify(results.details, null, 2)}</pre>
+                            </div>
+                          </details>
+                        )}
+                        {results.errors && results.errors.length > 0 && (
+                          <details className="bg-base-100 p-3 rounded">
+                            <summary className="text-sm font-medium cursor-pointer text-error">Errors ({results.errors.length})</summary>
+                            <div className="mt-2 text-xs overflow-auto max-h-48">
+                              <pre>{JSON.stringify(results.errors, null, 2)}</pre>
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {!results ? (
                 <div className="flex items-center justify-center h-full text-base-content/50">
                   <div className="text-center">
