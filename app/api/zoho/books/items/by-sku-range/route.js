@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
 import { Logger } from "@/libs/utils/logger";
+import { BooksReorderLevelService } from "@/libs/zoho/services/books/BooksReorderLevelService";
 
 /**
  * API route to fetch Zoho Books items by SKU range
@@ -105,10 +106,42 @@ export async function POST(req) {
       );
     }
 
+    // Filter items using isKeepStock validation
+    // This ensures only items that meet the SKU format and keep-stock criteria are returned
+    const reorderService = new BooksReorderLevelService();
+    const allItems = items || [];
+    const filteredItems = allItems.filter(item => {
+      const isValid = reorderService.isKeepStock({
+        sku: item.sku,
+        name: item.name,
+        purchase_description: null, // Not available in this query
+      });
+      return isValid;
+    });
+
+    const filteredCount = allItems.length - filteredItems.length;
+    if (filteredCount > 0) {
+      Logger.info('[by-sku-range] Filtered items using isKeepStock', {
+        totalItems: allItems.length,
+        filteredItems: filteredItems.length,
+        removedCount: filteredCount,
+        removedSkus: allItems
+          .filter(item => !reorderService.isKeepStock({
+            sku: item.sku,
+            name: item.name,
+            purchase_description: null,
+          }))
+          .map(item => item.sku)
+          .slice(0, 10) // Log first 10 removed SKUs
+      });
+    }
+
     const response = {
       success: true,
-      items: items || [],
-      count: items?.length || 0,
+      items: filteredItems,
+      count: filteredItems.length,
+      totalBeforeFilter: allItems.length,
+      filteredOut: filteredCount,
     };
 
     const totalDuration = Date.now() - startTime;

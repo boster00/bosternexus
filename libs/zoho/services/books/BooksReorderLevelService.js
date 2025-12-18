@@ -74,6 +74,14 @@ export class BooksReorderLevelService {
         if (!suffixPattern.test(parts[1])) {
           return false;
         }
+        // Log successful suffix validation
+        if(sku.includes('Dyl')) {
+          Logger.info('SKU suffix validation passed', {
+            sku,
+            suffix: parts[1],
+            message: 'This suffix passed the test'
+          });
+        }
       }
     }
 

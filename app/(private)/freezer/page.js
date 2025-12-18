@@ -454,7 +454,9 @@ export default function FreezerPage() {
             color-adjust: exact !important;
           }
 
-          /* Hide screen-only content */
+          /* Hide navigation bar and screen-only content */
+          .no-print-nav,
+          nav,
           .no-print {
             display: none !important;
           }
