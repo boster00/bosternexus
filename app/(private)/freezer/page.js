@@ -265,7 +265,7 @@ export default function FreezerPage() {
                             <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
                               <div className="label-content">
                                 <div className="label-sku">{label.sku}</div>
-                                <div className="label-keep">Keep: {label.space_to_save}</div>
+                                <div className="label-keep">Keep {label.space_to_save}</div>
                               </div>
                             </div>
                           ))}
@@ -301,7 +301,6 @@ export default function FreezerPage() {
                       <div key={`${rowIndex}-${labelIndex}`} className="label-cell">
                         <div className="label-content">
                           <div className="label-sku">{label.sku}</div>
-                          <div className="label-keep">Keep: {label.space_to_save}</div>
                         </div>
                       </div>
                     ))}
@@ -431,6 +430,7 @@ export default function FreezerPage() {
           font-size: 10px;
           color: #666;
         }
+
 
         /* Print styles - exact letter size */
         @media print {

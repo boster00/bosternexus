@@ -29,6 +29,9 @@ export class BooksReorderLevelService {
    * Determine if an item should be kept in stock (reorder level calculated)
    * 
    * Rules:
+   * - Must match SKU format regex: ^[A-Za-z]{1,2}[0-9]{4,5}(-[0-9]{1,2})?$
+   *   Examples: A00002, A00002-2, PA0001 (pass)
+   *   Examples: A00005-3-FITC (fail - has extra text)
    * - Must match at least one inclusion condition:
    *   1. Name contains "antibody" (case-insensitive)
    *   2. SKU starts with "EK" or "AR"
@@ -44,19 +47,29 @@ export class BooksReorderLevelService {
     }
 
     const name = (item.name || '').toLowerCase();
-    const sku = (item.sku || '').toUpperCase();
+    const sku = (item.sku || '');
     const purchaseDescription = (item.purchase_description || '').toLowerCase();
 
-    // Exclusion conditions (must NOT match any) - case-insensitive
+    // Must match SKU format: 1-2 letters, 4-5 digits, optional hyphen and 1-2 digits
+    // Examples: A00002, A00002-2, PA0001 (pass)
+    // Examples: A00005-3-FITC (fail - has extra text after optional digits)
+    const skuFormatRegex = /^[A-Za-z]{1,2}[0-9]{4,5}(-[0-9]{1,2})?$/;
+    if (!skuFormatRegex.test(sku)) {
+      return false;
+    }
+
+    const skuUpper = sku.toUpperCase();
     const skuLower = sku.toLowerCase();
+
+    // Exclusion conditions (must NOT match any) - case-insensitive
     if (skuLower.includes('10ug') || skuLower.includes('sample')) {
       return false;
     }
 
     // Inclusion conditions (must match at least one)
     const hasAntibodyInName = name.includes('antibody');
-    const startsWithEK = sku.startsWith('EK');
-    const startsWithAR = sku.startsWith('AR');
+    const startsWithEK = skuUpper.startsWith('EK');
+    const startsWithAR = skuUpper.startsWith('AR');
 
     return hasAntibodyInName || startsWithEK || startsWithAR;
   }
