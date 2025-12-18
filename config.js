@@ -87,7 +87,7 @@ const config = {
     // REQUIRED — the path to log in users. It's use to protect private routes (like /admin). It's used in apiClient (/libs/api.js) upon 401 errors from our API
     loginUrl: "/signin",
     // REQUIRED — the path you want to redirect users after successfull login. Default redirect for authenticated users.
-    callbackUrl: "/admin",
+    callbackUrl: "/freezer",
   },
 };
 

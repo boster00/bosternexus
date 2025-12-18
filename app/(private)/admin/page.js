@@ -1,4 +1,4 @@
-import ButtonAccount from "@/components/ButtonAccount";
+import Link from "next/link";
 import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
 
 export const dynamic = "force-dynamic";
