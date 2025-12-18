@@ -454,17 +454,27 @@ export default function FreezerPage() {
             color-adjust: exact !important;
           }
 
-          /* Hide navigation bar, screen-only content, and toast notifications */
+          /* Hide navigation bar and screen-only content */
           .no-print-nav,
           nav,
-          .no-print,
+          .no-print {
+            display: none !important;
+          }
+
+          /* Hide all toast notifications and their containers */
           [data-sonner-toast],
           [data-sonner-toaster],
           .react-hot-toast,
           [class*="toast"],
-          [id*="toast"] {
+          [id*="toast"],
+          div[role="status"],
+          div[aria-live],
+          .__react-hot-toast-container {
             display: none !important;
             visibility: hidden !important;
+            opacity: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
           }
 
           /* Ensure body and html have no margins/padding for print */
