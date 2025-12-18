@@ -229,9 +229,9 @@ export default function FreezerPage() {
               {items.length > 0 && (
                 <div className="card card-border bg-base-100 p-6">
                   <h2 className="text-xl font-bold mb-4">Reorder Levels</h2>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto overflow-y-auto border border-gray-200 rounded-lg" style={{ maxHeight: '300px' }}>
                     <table className="table table-zebra w-full">
-                      <thead>
+                      <thead className="sticky top-0 bg-base-100 z-10">
                         <tr>
                           <th>SKU</th>
                           <th>Name</th>
@@ -409,10 +409,6 @@ export default function FreezerPage() {
           justify-content: center;
           position: relative;
           box-sizing: border-box;
-        }
-
-        .label-cell:last-child {
-          border-right: none;
         }
 
         .label-cell-empty {

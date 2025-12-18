@@ -50,12 +50,31 @@ export class BooksReorderLevelService {
     const sku = (item.sku || '');
     const purchaseDescription = (item.purchase_description || '').toLowerCase();
 
-    // Must match SKU format: 1-2 letters, 4-5 digits, optional hyphen and 1-2 digits
+    // Must match SKU format: 1-2 letters, 4-5 digits, optional hyphen and 1-2 digits ONLY
     // Examples: A00002, A00002-2, PA0001 (pass)
-    // Examples: A00005-3-FITC (fail - has extra text after optional digits)
+    // Examples: A00005-3-FITC, A00181-Dyl488 (fail - has extra text after optional digits)
+    // The pattern ensures: letters + digits + (optional: hyphen + digits ONLY) + end of string
+    // This explicitly rejects anything after the optional hyphen that isn't 1-2 digits
     const skuFormatRegex = /^[A-Za-z]{1,2}[0-9]{4,5}(-[0-9]{1,2})?$/;
     if (!skuFormatRegex.test(sku)) {
       return false;
+    }
+    
+    // Additional validation: If there's a hyphen, ensure nothing follows the digits
+    // This catches cases like "A00181-Dyl488" where the regex might not catch it properly
+    if (sku.includes('-')) {
+      const parts = sku.split('-');
+      if (parts.length > 2) {
+        // More than one hyphen means extra text after the optional suffix
+        return false;
+      }
+      if (parts.length === 2) {
+        // Check that the part after hyphen is ONLY digits (1-2 digits)
+        const suffixPattern = /^[0-9]{1,2}$/;
+        if (!suffixPattern.test(parts[1])) {
+          return false;
+        }
+      }
     }
 
     const skuUpper = sku.toUpperCase();
