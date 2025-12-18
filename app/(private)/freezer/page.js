@@ -461,7 +461,7 @@ export default function FreezerPage() {
             display: none !important;
           }
 
-          /* Hide all toast notifications and their containers */
+          /* Hide all toast notifications and their containers - comprehensive approach */
           [data-sonner-toast],
           [data-sonner-toaster],
           .react-hot-toast,
@@ -470,13 +470,20 @@ export default function FreezerPage() {
           div[role="status"],
           div[aria-live],
           .__react-hot-toast-container,
-          /* Hide toast icons and checkmarks */
+          /* Target the Toaster component container */
+          div[class*="react-hot-toast"],
+          div[class*="react-hot-toast"] > div,
+          /* Hide toast icons, checkmarks, and all child elements */
           svg[class*="toast"],
           svg[data-icon],
           [class*="toast"] svg,
           [class*="toast"] path,
           [class*="toast"] circle,
-          [class*="toast"] * {
+          [class*="toast"] *,
+          /* Hide any success/checkmark icons */
+          [class*="success"],
+          [class*="check"],
+          [class*="icon"] {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
@@ -484,6 +491,8 @@ export default function FreezerPage() {
             left: -9999px !important;
             width: 0 !important;
             height: 0 !important;
+            max-width: 0 !important;
+            max-height: 0 !important;
           }
 
           /* Ensure body and html have no margins/padding for print */
