@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
 import { modules } from "@/libs/modules";
+import ModuleCard from "@/components/ModuleCard";
 
 export const dynamic = "force-dynamic";
 
@@ -64,53 +64,27 @@ export default async function AdminPage() {
             <h2 className="text-2xl font-bold">Bookmarked Modules</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {bookmarkedModules.map((module) => (
-                <Link
+                <ModuleCard
                   key={module.id}
-                  href={module.path}
-                  className="card card-border bg-base-100 p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start gap-4">
-                    {module.icon && (
-                      <div className="text-3xl">{module.icon}</div>
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg mb-2">{module.name}</h3>
-                      {module.description && (
-                        <p className="text-sm opacity-70">{module.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </Link>
+                  module={module}
+                  isBookmarked={true}
+                />
               ))}
             </div>
           </div>
         )}
 
-        {/* All Other Modules Section */}
+        {/* Other Modules Section */}
         {otherModules.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold">
-              {bookmarkedModules.length > 0 ? 'All Modules' : 'Available Modules'}
-            </h2>
+            <h2 className="text-2xl font-bold">Other Modules</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {otherModules.map((module) => (
-                <Link
+                <ModuleCard
                   key={module.id}
-                  href={module.path}
-                  className="card card-border bg-base-100 p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start gap-4">
-                    {module.icon && (
-                      <div className="text-3xl">{module.icon}</div>
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg mb-2">{module.name}</h3>
-                      {module.description && (
-                        <p className="text-sm opacity-70">{module.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </Link>
+                  module={module}
+                  isBookmarked={false}
+                />
               ))}
             </div>
           </div>
