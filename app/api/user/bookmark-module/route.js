@@ -43,8 +43,24 @@ export async function POST(req) {
       );
     }
 
-    // Get current settings or initialize
-    const currentSettings = profile.settings || {};
+    // Check if settings column exists (it might not if migration hasn't been run)
+    // If settings doesn't exist, initialize it
+    let currentSettings = {};
+    if (profile.settings !== undefined && profile.settings !== null) {
+      if (typeof profile.settings === 'object') {
+        currentSettings = profile.settings;
+      } else {
+        // If settings is a string, try to parse it
+        try {
+          currentSettings = typeof profile.settings === 'string' 
+            ? JSON.parse(profile.settings) 
+            : {};
+        } catch {
+          currentSettings = {};
+        }
+      }
+    }
+    
     const currentBookmarks = currentSettings.dashboard_bookmarks || [];
 
     // Update bookmarks array
@@ -66,16 +82,56 @@ export async function POST(req) {
     };
 
     // Update profile
-    const { error } = await dal.update(
-      "profiles",
-      { settings: updatedSettings },
-      { id: user.id }
-    );
+    try {
+      const { error } = await dal.update(
+        "profiles",
+        { settings: updatedSettings },
+        { id: user.id }
+      );
 
-    if (error) {
-      Logger.error('[bookmark-module] Failed to update profile', error);
+      if (error) {
+        Logger.error('[bookmark-module] Failed to update profile', {
+          error,
+          errorMessage: error.message,
+          errorCode: error.code,
+        });
+        
+        // Check if the error is about missing column
+        if (error.message?.includes("settings") && error.message?.includes("column")) {
+          return NextResponse.json(
+            { 
+              error: "Database migration required. Please run migration 015_add_settings_to_profiles.sql in Supabase.",
+              details: "The 'settings' column does not exist in the profiles table. Run the migration to add it."
+            },
+            { status: 500 }
+          );
+        }
+        
+        return NextResponse.json(
+          { error: error.message || "Failed to update bookmark" },
+          { status: 500 }
+        );
+      }
+    } catch (updateError) {
+      Logger.error('[bookmark-module] Update exception', {
+        error: updateError,
+        errorMessage: updateError.message,
+        errorStack: updateError.stack,
+      });
+      
+      // Check if the error is about missing column
+      if (updateError.message?.includes("settings") && updateError.message?.includes("column")) {
+        return NextResponse.json(
+          { 
+            error: "Database migration required. Please run migration 015_add_settings_to_profiles.sql in Supabase.",
+            details: "The 'settings' column does not exist in the profiles table. Run the migration to add it."
+          },
+          { status: 500 }
+        );
+      }
+      
       return NextResponse.json(
-        { error: "Failed to update bookmark" },
+        { error: updateError.message || "Failed to update bookmark" },
         { status: 500 }
       );
     }
