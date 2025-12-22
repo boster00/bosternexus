@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DataAccessLayer } from "@/libs/supabase/data-access-layer";
+import { modules } from "@/libs/modules";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,31 @@ export default async function AdminPage() {
     autoTimestamps: false,
   });
   const user = await dal.getCurrentUser();
+
+  // Get user profile with settings
+  let profile = null;
+  let bookmarkedModuleIds = [];
+  if (user) {
+    try {
+      profile = await dal.getSingle("profiles", { id: user.id });
+      // Extract bookmarked module IDs from settings
+      // Default to empty array if settings or dashboard_bookmarks doesn't exist
+      if (profile?.settings && typeof profile.settings === 'object') {
+        bookmarkedModuleIds = profile.settings.dashboard_bookmarks || [];
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      // Continue with empty bookmarks if profile fetch fails
+    }
+  }
+
+  // Separate modules into bookmarked and non-bookmarked
+  const bookmarkedModules = modules.filter(module => 
+    bookmarkedModuleIds.includes(module.id)
+  );
+  const otherModules = modules.filter(module => 
+    !bookmarkedModuleIds.includes(module.id)
+  );
 
   return (
     <main className="p-8 pb-24">
@@ -29,60 +55,75 @@ export default async function AdminPage() {
               You are successfully authenticated and have access to the admin dashboard.
             </p>
             <div className="divider"></div>
-            <div className="space-y-2 text-sm">
-              <p><strong>User ID:</strong> {user.id}</p>
-              {user.user_metadata?.name && (
-                <p><strong>Name:</strong> {user.user_metadata.name}</p>
-              )}
+          </div>
+        )}
+
+        {/* Bookmarked Modules Section */}
+        {bookmarkedModules.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">Bookmarked Modules</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {bookmarkedModules.map((module) => (
+                <Link
+                  key={module.id}
+                  href={module.path}
+                  className="card card-border bg-base-100 p-6 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-start gap-4">
+                    {module.icon && (
+                      <div className="text-3xl">{module.icon}</div>
+                    )}
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg mb-2">{module.name}</h3>
+                      {module.description && (
+                        <p className="text-sm opacity-70">{module.description}</p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         )}
 
-        <div className="card card-border bg-base-100 p-6">
-          <h2 className="text-2xl font-bold mb-4">About Boster Nexus</h2>
-          <div className="space-y-4 text-sm">
-            <p className="opacity-80">
-              Boster Nexus is an integrated business management platform designed to streamline operations 
-              for Boster Bio. The system provides comprehensive tools for managing inventory, sales, 
-              purchasing, and customer relationships through seamless integration with Zoho Books, 
-              Zoho CRM, and Zoho Desk.
-            </p>
-            <div className="divider"></div>
-            <h3 className="font-bold text-lg">What You Can Do</h3>
-            <ul className="list-disc list-inside space-y-2 opacity-80 ml-4">
-              <li><strong>Zoho Integration:</strong> Test and manage Zoho API connections, sync historical data, 
-                and calculate inventory reorder levels based on sales history</li>
-              <li><strong>Inventory Management:</strong> View and manage product inventory, track stock levels, 
-                and calculate optimal reorder points</li>
-              <li><strong>Freezer Label Printing:</strong> Generate and print freezer storage labels with SKU 
-                information and space allocation</li>
-              <li><strong>Data Synchronization:</strong> Automatically sync sales orders, invoices, purchase orders, 
-                and bills from Zoho Books to maintain up-to-date records</li>
-              <li><strong>Historical Data Sync:</strong> Import and sync historical transaction data from Zoho 
-                with resumable batch processing</li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="card card-border bg-base-100 p-6">
-            <h3 className="font-bold text-lg mb-2">Quick Links</h3>
-            <div className="space-y-2">
-              <Link href="/zoho-test" className="block text-primary hover:underline">
-                → Zoho Test & Configuration
-              </Link>
-              <Link href="/freezer" className="block text-primary hover:underline">
-                → Freezer Label Printer
-              </Link>
+        {/* All Other Modules Section */}
+        {otherModules.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">
+              {bookmarkedModules.length > 0 ? 'All Modules' : 'Available Modules'}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {otherModules.map((module) => (
+                <Link
+                  key={module.id}
+                  href={module.path}
+                  className="card card-border bg-base-100 p-6 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-start gap-4">
+                    {module.icon && (
+                      <div className="text-3xl">{module.icon}</div>
+                    )}
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg mb-2">{module.name}</h3>
+                      {module.description && (
+                        <p className="text-sm opacity-70">{module.description}</p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
+        )}
+
+        {/* Empty State */}
+        {modules.length === 0 && (
           <div className="card card-border bg-base-100 p-6">
-            <h3 className="font-bold text-lg mb-2">System Status</h3>
-            <p className="text-sm opacity-70">
-              All systems operational. Use the navigation bar above to access different modules and features.
+            <p className="text-sm opacity-70 text-center">
+              No modules available at this time.
             </p>
           </div>
-        </div>
+        )}
       </section>
     </main>
   );
