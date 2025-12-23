@@ -1,0 +1,13 @@
+{"timestamp":"2025-12-23T07:23:17.122Z","level":"info","message":"AI edit element API called"}
+{"timestamp":"2025-12-23T07:23:17.132Z","level":"debug","message":"Request body received","hasOriginalHTML":true,"hasUserPrompt":true,"promptType":"replace-all","modelType":"normal","hasUserId":true,"originalHTMLLength":1448,"userPromptLength":1155}
+{"timestamp":"2025-12-23T07:23:17.136Z","level":"debug","message":"User ID check","providedUserId":"f9015c3d-d105-4ee3-91dc-4855644da238"}
+{"timestamp":"2025-12-23T07:23:17.137Z","level":"info","message":"Using userId for AI request","userId":"f9015c3d-d105-4ee3-91dc-4855644da238"}
+{"timestamp":"2025-12-23T07:23:17.138Z","level":"debug","message":"Building prompt","promptType":"replace-all"}
+{"timestamp":"2025-12-23T07:23:17.138Z","level":"debug","message":"Prompt built","systemPromptLength":277,"userMessageLength":2632}
+{"timestamp":"2025-12-23T07:23:17.139Z","level":"info","message":"Calling OpenAI","userId":"f9015c3d-d105-4ee3-91dc-4855644da238","maxTokens":2000,"temperature":0.7,"messageCount":2,"modelType":"normal"}
+{"timestamp":"2025-12-23T07:23:17.141Z","level":"debug","message":"OpenAI API call","model":"gpt-4o","modelType":"normal","userId":"f9015c3d-d105-4ee3-91dc-4855644da238","maxTokens":2000,"temperature":0.7,"messageCount":2}
+{"timestamp":"2025-12-23T07:23:21.614Z","level":"info","message":"OpenAI API call successful","model":"gpt-4o","modelType":"normal","userId":"f9015c3d-d105-4ee3-91dc-4855644da238","tokensUsed":1294,"promptTokens":698,"completionTokens":596}
+{"timestamp":"2025-12-23T07:23:21.616Z","level":"debug","message":"OpenAI response received","hasResponse":true,"responseLength":2347}
+{"timestamp":"2025-12-23T07:23:21.617Z","level":"debug","message":"Extracting HTML from AI response","responseLength":2347,"responsePreview":"```html\n<section class=\"mb-6 mouse-over-highlight workflow-section\">\n  <h2 class=\"topic-heading text-orange text-center font-larger text-uppercase font-weight-bold typography-josefin-sans mb-3 mt-6\">H"}
+{"timestamp":"2025-12-23T07:23:21.620Z","level":"debug","message":"Extracted HTML from ```html block","extractedLength":2335}
+{"timestamp":"2025-12-23T07:23:21.621Z","level":"info","message":"AI edit element success","extractedHTMLLength":2335}
