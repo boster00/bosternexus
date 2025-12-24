@@ -44,7 +44,7 @@ export default async function AdminPage() {
     <main className="p-8 pb-24">
       <section className="max-w-4xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl md:text-4xl font-extrabold mb-2">Boster Nexus Admin</h1>
+          <h1 className="text-3xl md:text-4xl font-extrabold mb-2">Boster Nexus Dashboard</h1>
           <p className="text-sm opacity-70">Welcome to your business management dashboard</p>
         </div>
 

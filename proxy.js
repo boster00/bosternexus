@@ -1,6 +1,7 @@
 import { updateSession } from "@/libs/supabase/middleware";
 
 export async function proxy(request) {
+  // All routes go through Supabase auth
   return await updateSession(request);
 }
 
