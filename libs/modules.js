@@ -27,6 +27,20 @@ export const modules = [
     description: 'Edit and manage webpage content',
     icon: '📝',
   },
+  {
+    id: 'bic',
+    name: 'Boster Info Center',
+    path: '/bic',
+    description: 'Internal knowledge base with search, tags, and access control',
+    icon: '📚',
+  },
+  {
+    id: 'landing-page-mock-up-test',
+    name: 'Landing Page Mock-Up Test',
+    path: '/landing-page-mock-up-test',
+    description: 'Rapid IHC Services with 3000+ Validated Antibodies - Landing page for pharmaceutical companies',
+    icon: '🧪',
+  },
 ];
 
 /**
