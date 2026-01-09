@@ -164,7 +164,7 @@ export default function LeftPanel({
       });
 
       setStylesLoaded(true);
-      toast.success(`Loaded ${links.length} stylesheet(s)`);
+      // Styles loaded silently (no toast)
     }
   };
 
@@ -187,7 +187,8 @@ export default function LeftPanel({
 
       // Set HTML content to body (replace existing content)
       iframeDoc.body.innerHTML = htmlContent.trim();
-      
+
+      console.log('[LeftPanel] HTML content loaded:', iframeDoc.body.innerHTML);
       // Make body contenteditable for WYSIWYG editing
       iframeDoc.body.contentEditable = 'true';
       iframeDoc.body.style.outline = 'none';
@@ -202,20 +203,64 @@ export default function LeftPanel({
 
   // Load webpage by urlKey if provided (similar to handleLoadSelect but without navigation)
   useEffect(() => {
-    if (!urlKey || !userId || currentWebpage) {
-      // Don't load if no urlKey, no userId, or already loaded
+    // Skip if no urlKey or userId
+    if (!urlKey || !userId) {
+      return;
+    }
+
+    // Skip if webpage is already loaded and matches the urlKey
+    if (currentWebpage?.url_key === urlKey && currentWebpage?.id) {
+      console.log('[LeftPanel] useEffect - Webpage already loaded, skipping loadWebpageByUrlKey', {
+        urlKey,
+        currentWebpageId: currentWebpage.id,
+        currentWebpageUrlKey: currentWebpage.url_key,
+      });
       return;
     }
 
     let mounted = true;
 
     async function loadWebpageByUrlKey() {
+      console.log('[LeftPanel] loadWebpageByUrlKey called', {
+        urlKey,
+        userId,
+        iframeReady,
+        currentWebpageId: currentWebpage?.id || null,
+        currentWebpageUrlKey: currentWebpage?.url_key || null,
+        mounted,
+        timestamp: new Date().toISOString(),
+      });
+
       try {
-        const response = await apiClient.get(`/webpages/get-by-url-key?url_key=${urlKey}`);
+        const apiUrl = `/webpages/get-by-url-key?url_key=${urlKey}`;
+        console.log('[LeftPanel] Making API request', { apiUrl, urlKey });
         
-        if (!mounted) return;
+        const response = await apiClient.get(apiUrl);
+        
+        console.log('[LeftPanel] API response received', {
+          hasResponse: !!response,
+          success: response?.success,
+          hasWebpage: !!response?.webpage,
+          webpageId: response?.webpage?.id || null,
+          webpageUrlKey: response?.webpage?.url_key || null,
+          hasHtmlContent: !!response?.webpage?.html_content,
+          htmlContentLength: response?.webpage?.html_content?.length || 0,
+        });
+
+        if (!mounted) {
+          console.log('[LeftPanel] Component unmounted, ignoring response');
+          return;
+        }
         
         if (response.success && response.webpage) {
+          console.log('[LeftPanel] Loading webpage into editor', {
+            webpageId: response.webpage.id,
+            webpageName: response.webpage.name,
+            urlKey: response.webpage.url_key,
+            hasHtmlContent: !!response.webpage.html_content,
+            htmlContentLength: response.webpage.html_content?.length || 0,
+          });
+
           // Load the webpage - this is the same action as clicking a page in LoadPageModal
           onWebpageChange(response.webpage);
           // Update the HTML content in iframe
@@ -231,15 +276,29 @@ export default function LeftPanel({
         } else {
           // Page not found - this is expected for new pages
           // Don't show error, just allow editing as a new page
-          console.log('Page not found, creating new page with URL key:', urlKey);
+          console.log('[LeftPanel] Page not found, creating new page with URL key:', urlKey, {
+            responseSuccess: response?.success,
+            hasWebpage: !!response?.webpage,
+          });
         }
       } catch (err) {
+        console.error('[LeftPanel] Error loading webpage by urlKey', {
+          error: err,
+          errorMessage: err.message,
+          responseStatus: err.response?.status,
+          responseData: err.response?.data,
+          urlKey,
+        });
+
         // Handle 404 gracefully - page doesn't exist yet, which is fine
         if (err.response?.status === 404) {
-          console.log('Page not found (404), creating new page with URL key:', urlKey);
+          console.log('[LeftPanel] Page not found (404), creating new page with URL key:', urlKey, {
+            errorMessage: err.message,
+            responseData: err.response?.data,
+          });
           // Don't show error, allow it to proceed as a new page
         } else {
-          console.error('Error loading webpage by urlKey:', err);
+          console.error('[LeftPanel] Non-404 error loading webpage:', err);
           // Only show error for non-404 errors
           toast.error(err.message || 'Failed to load page');
         }
@@ -383,9 +442,22 @@ export default function LeftPanel({
   };
 
   const handleSaveClick = async () => {
+    console.log('[LeftPanel] handleSaveClick called', {
+      hasCurrentWebpage: !!currentWebpage,
+      currentWebpageId: currentWebpage?.id || null,
+      currentUrlKey: currentWebpage?.url_key || null,
+      currentPath: typeof window !== 'undefined' ? window.location.pathname : null,
+    });
+
     if (currentWebpage) {
       // Update existing webpage
       const cleanHTML = getCleanHTMLFromIframe(iframeRef);
+      
+      console.log('[LeftPanel] handleSaveClick - HTML extracted', {
+        hasHtml: !!cleanHTML,
+        htmlLength: cleanHTML?.length || 0,
+        htmlPreview: cleanHTML?.substring(0, 200) || null,
+      });
       
       if (!cleanHTML) {
         toast.error('No content to save');
@@ -394,24 +466,58 @@ export default function LeftPanel({
 
       setSaving(true);
       try {
-        const response = await apiClient.post('/webpages/update', {
+        const requestPayload = {
           webpageId: currentWebpage.id,
           htmlContent: cleanHTML,
+        };
+
+        console.log('[LeftPanel] handleSaveClick - Request payload - FULL PAYLOAD', {
+          fullPayload: requestPayload,
+          webpageId: requestPayload.webpageId,
+          htmlContentLength: requestPayload.htmlContent?.length || 0,
+          htmlContentPreview: requestPayload.htmlContent?.substring(0, 200) || null,
+        });
+
+        const response = await apiClient.post('/webpages/update', requestPayload);
+
+        console.log('[LeftPanel] handleSaveClick - Response received - FULL RESPONSE', {
+          fullResponse: response,
+          success: response?.success,
+          hasWebpage: !!response?.webpage,
+          webpageId: response?.webpage?.id || null,
+          webpageUrlKey: response?.webpage?.url_key || null,
+          hasError: !!response?.error,
+          errorMessage: response?.error || null,
         });
 
         if (response.success) {
           toast.success('Page saved successfully');
           onWebpageChange(response.webpage);
-          // Navigate to /webpage-editor/url_key if URL key exists and we're not already there
-          if (response.webpage.url_key) {
-            const currentPath = window.location.pathname;
+          
+          // Only navigate if URL key changed (don't navigate if we're already on the correct path)
+          if (response.webpage.url_key && response.webpage.url_key !== currentWebpage?.url_key) {
             const expectedPath = `/webpage-editor/${response.webpage.url_key}`;
-            if (currentPath !== expectedPath) {
-              router.push(expectedPath);
-            }
+            
+            console.log('[LeftPanel] handleSaveClick - URL key changed, navigating', {
+              oldUrlKey: currentWebpage?.url_key || null,
+              newUrlKey: response.webpage.url_key,
+              to: expectedPath,
+            });
+            
+            router.push(expectedPath);
+          } else {
+            console.log('[LeftPanel] handleSaveClick - No navigation needed', {
+              currentUrlKey: currentWebpage?.url_key || null,
+              responseUrlKey: response.webpage.url_key || null,
+              urlKeyChanged: response.webpage.url_key !== currentWebpage?.url_key,
+            });
           }
         } else {
           const errorMessage = response.error || 'Failed to save page';
+          console.error('[LeftPanel] handleSaveClick - Save failed', {
+            errorMessage,
+            fullResponse: response,
+          });
           toast.error(errorMessage);
           // If error is about URL key, show it in the modal if we have one
           if (errorMessage.includes('URL key') || errorMessage.includes('already taken')) {
@@ -419,6 +525,13 @@ export default function LeftPanel({
           }
         }
       } catch (error) {
+        console.error('[LeftPanel] handleSaveClick - Exception', {
+          error,
+          errorMessage: error.message,
+          responseStatus: error.response?.status,
+          responseData: error.response?.data,
+          fullError: error,
+        });
         const errorMessage = error.message || 'An error occurred while saving';
         toast.error(errorMessage);
         if (errorMessage.includes('URL key') || errorMessage.includes('already taken')) {
@@ -429,6 +542,7 @@ export default function LeftPanel({
       }
     } else {
       // New webpage - open modal (clear any previous errors)
+      console.log('[LeftPanel] handleSaveClick - No current webpage, opening save modal');
       setSaveModalError(null);
       setShowSaveModal(true);
     }

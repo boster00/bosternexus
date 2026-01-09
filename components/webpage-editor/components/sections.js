@@ -634,7 +634,7 @@ export const sections = {
     html: `<section class="mb-6 mouse-over-highlight bg-lightgrey testimonial-section">
   <div id="testimonials-slider" class="carousel slide global-testimonials-slider">
     <ol class="carousel-indicators">
-      <li data-target="#testimonials-slider" data-slide-to="0" class="active"></i>
+      <li data-target="#testimonials-slider" data-slide-to="0" class="active"></li>
       <li data-target="#testimonials-slider" data-slide-to="1"></li>
       <li data-target="#testimonials-slider" data-slide-to="2"></li>
     </ol>

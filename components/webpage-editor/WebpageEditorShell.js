@@ -13,7 +13,24 @@ import { insertSectionAfter, insertHTMLAfterElement, duplicateSection, moveSecti
 export default function WebpageEditorShell({ userId, initialContent, initialWebpage = null, urlKey = null }) {
   const [currentWebpage, setCurrentWebpage] = useState(initialWebpage);
   const [isDirty, setIsDirty] = useState(false);
-  const [pageContent, setPageContent] = useState(initialWebpage?.html_content || initialContent);
+  
+  // Determine initial page content
+  // Priority: 1) initialWebpage.html_content, 2) sessionStorage (for new pages), 3) initialContent
+  const [pageContent, setPageContent] = useState(() => {
+    if (initialWebpage?.html_content) {
+      return initialWebpage.html_content;
+    }
+    // Check sessionStorage for HTML content from NewPageModal (client-side only)
+    if (typeof window !== 'undefined' && !urlKey) {
+      const storedHtml = sessionStorage.getItem('newPageHtmlContent');
+      if (storedHtml) {
+        // Clear it from sessionStorage so it's only used once
+        sessionStorage.removeItem('newPageHtmlContent');
+        return storedHtml;
+      }
+    }
+    return initialContent;
+  });
   const [focusSection, setFocusSection] = useState(null);
   const [focusedElement, setFocusedElement] = useState(null); // Last clicked in-section element
   const [isSidebarVisible, setIsSidebarVisible] = useState(false); // Visibility state (hidden by default)

@@ -15,15 +15,23 @@ apiClient.interceptors.response.use(
   },
   function (error) {
     let message = "";
+    const status = error.response?.status;
 
-    if (error.response?.status === 401) {
+    if (status === 401) {
       // User not auth, ask to re login
       toast.error("Please login");
       // Sends the user to the login page
       redirect(config.auth.loginUrl);
-    } else if (error.response?.status === 403) {
+    } else if (status === 403) {
       // User not authorized, must subscribe/purchase/pick a plan
       message = "Pick a plan to use this feature";
+    } else if (status === 404) {
+      // 404 is expected for some endpoints (e.g., new pages), don't show toast or log as error
+      // The calling code should handle 404s appropriately
+      message = error?.response?.data?.error || error.message || error.toString();
+      error.message = typeof message === "string" ? message : JSON.stringify(message);
+      // Don't log 404s as errors - they're expected behavior for new pages
+      return Promise.reject(error);
     } else {
       message =
         error?.response?.data?.error || error.message || error.toString();
@@ -34,7 +42,7 @@ apiClient.interceptors.response.use(
 
     console.error(error.message);
 
-    // Automatically display errors to the user
+    // Automatically display errors to the user (except 404s which are handled above)
     if (error.message) {
       toast.error(error.message);
     } else {

@@ -104,21 +104,21 @@ export default function LoadPageModal({ isOpen, onClose, onSelect, userId }) {
                   key={webpage.id}
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <div 
-                    onClick={() => onSelect(webpage)}
-                    className="cursor-pointer"
-                  >
-                    <div className="font-semibold">{webpage.name}</div>
-                    <div className="text-sm text-gray-500">/{webpage.url_key}</div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      Updated: {new Date(webpage.updated_at).toLocaleDateString()}
+                  <div className="flex items-center justify-between gap-4">
+                    <div 
+                      onClick={() => onSelect(webpage)}
+                      className="cursor-pointer flex-1"
+                    >
+                      <div className="font-semibold">{webpage.name}</div>
+                      <div className="text-sm text-gray-500">/{webpage.url_key}</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        Updated: {new Date(webpage.updated_at).toLocaleDateString()}
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-2 flex justify-end">
                     <button
                       onClick={(e) => handleDelete(webpage.id, e)}
                       disabled={deletingId === webpage.id}
-                      className="btn btn-sm btn-error"
+                      className="btn btn-sm btn-error flex-shrink-0"
                     >
                       {deletingId === webpage.id ? (
                         <>

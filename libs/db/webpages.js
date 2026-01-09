@@ -38,6 +38,11 @@ export async function getUserWebpages(userId) {
  * Get a single webpage by ID
  */
 export async function getWebpageById(webpageId, userId) {
+  Logger.info('[webpages/getWebpageById] Starting database query', {
+    webpageId,
+    userId,
+  });
+
   const dal = new DataAccessLayer({
     useServiceRole: false,
     requireUserId: false,
@@ -45,19 +50,42 @@ export async function getWebpageById(webpageId, userId) {
   });
 
   try {
-    const { data, error } = await dal.getSingle('webpages', {
+    const queryFilters = {
       id: webpageId,
       user_id: userId, // Ensure user can only access their own
+    };
+
+    Logger.info('[webpages/getWebpageById] Query filters', {
+      filters: queryFilters,
     });
 
-    if (error) {
-      Logger.error('[webpages] Error fetching webpage', error);
-      throw error;
-    }
+    // dal.getSingle returns the record directly (or null if not found), not { data, error }
+    const data = await dal.getSingle('webpages', queryFilters);
+
+    Logger.info('[webpages/getWebpageById] DAL query result - FULL RESPONSE', {
+      dalResult: data,
+      hasData: !!data,
+      dataValue: data, // Full data object (or null)
+      dataId: data?.id || null,
+      dataUrlKey: data?.url_key || null,
+      dataUserId: data?.user_id || null,
+      dataType: typeof data,
+      isNull: data === null,
+    });
+
+    Logger.info('[webpages/getWebpageById] Query successful', {
+      hasData: !!data,
+      webpageId: data?.id || null,
+    });
 
     return { data, error: null };
   } catch (error) {
-    Logger.error('[webpages] Exception fetching webpage', error);
+    Logger.error('[webpages/getWebpageById] Exception fetching webpage', error, {
+      webpageId,
+      userId,
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
     return { data: null, error };
   }
 }
@@ -176,20 +204,48 @@ export async function getWebpageByUrlKey(userId, urlKey) {
     autoTimestamps: false,
   });
 
+  Logger.info('[webpages/getWebpageByUrlKey] Starting database query', {
+    userId,
+    urlKey,
+  });
+
   try {
-    const { data, error } = await dal.getSingle('webpages', {
+    const queryFilters = {
       user_id: userId,
       url_key: urlKey,
+    };
+
+    Logger.info('[webpages/getWebpageByUrlKey] Query filters', {
+      filters: queryFilters,
     });
 
-    if (error) {
-      Logger.error('[webpages] Error fetching webpage by URL key', error);
-      throw error;
-    }
+    // dal.getSingle returns the record directly (or null if not found), not { data, error }
+    const data = await dal.getSingle('webpages', queryFilters);
+
+    Logger.info('[webpages/getWebpageByUrlKey] DAL query result - FULL RESPONSE', {
+      dalResult: data,
+      hasData: !!data,
+      dataValue: data, // Full data object (or null)
+      dataId: data?.id || null,
+      dataUrlKey: data?.url_key || null,
+      dataUserId: data?.user_id || null,
+      dataType: typeof data,
+      isNull: data === null,
+    });
+
+    Logger.info('[webpages/getWebpageByUrlKey] Query successful', {
+      hasData: !!data,
+      webpageId: data?.id || null,
+    });
 
     return { data, error: null };
   } catch (error) {
-    Logger.error('[webpages] Exception fetching webpage by URL key', error);
+    Logger.error('[webpages] Exception fetching webpage by URL key', error, {
+      userId,
+      urlKey,
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
     return { data: null, error };
   }
 }
