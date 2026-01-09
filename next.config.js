@@ -1,5 +1,9 @@
 const nextConfig = {
   reactStrictMode: true,
+  // Fix workspace root warning for monorepo/workspace setups
+  turbopack: {
+    root: process.cwd(),
+  },
   images: {
     remotePatterns: [
       {
@@ -21,6 +25,7 @@ const nextConfig = {
     ],
   },
   turbopack: {
+    root: __dirname,
     rules: {
       "*.svg": {
         loaders: ["@svgr/webpack"],
